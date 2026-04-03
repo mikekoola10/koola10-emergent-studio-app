@@ -1,13 +1,14 @@
 import React, { useState, useEffect } from 'react';
-import { Plus } from 'lucide-react';
+import { Plus, Github } from 'lucide-react';
 import Sidebar from '../components/Sidebar';
 import Header from '../components/Header';
 import EpisodeCard from '../components/EpisodeCard';
-import { episodesAPI } from '../services/api';
+import { episodesAPI, githubAPI } from '../services/api';
 
 const Episodes = () => {
   const [episodes, setEpisodes] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [githubStatus, setGithubStatus] = useState(null);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [formData, setFormData] = useState({
     title: '',
@@ -19,6 +20,7 @@ const Episodes = () => {
 
   useEffect(() => {
     loadEpisodes();
+    loadGithubStatus();
   }, []);
 
   const loadEpisodes = async () => {
@@ -29,6 +31,29 @@ const Episodes = () => {
       console.error('Failed to load episodes:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadGithubStatus = async () => {
+    try {
+      const response = await githubAPI.getStatus();
+      setGithubStatus(response.data);
+    } catch (error) {
+      console.error('Failed to load GitHub status:', error);
+    }
+  };
+
+  const handlePushToGithub = async (episodeId) => {
+    try {
+      const response = await githubAPI.pushEpisode(episodeId);
+      if (response.data.status === 'success') {
+        alert('Episode pushed to GitHub successfully!');
+      } else {
+        alert(`Failed to push: ${response.data.message}`);
+      }
+    } catch (error) {
+      console.error('Failed to push to GitHub:', error);
+      alert('Failed to push to GitHub. Make sure GitHub is configured in settings.');
     }
   };
 
@@ -58,14 +83,22 @@ const Episodes = () => {
                 <h3 className="text-xl font-semibold text-gray-900">All Episodes</h3>
                 <p className="text-sm text-gray-600 mt-1">{episodes.length} episodes total</p>
               </div>
-              <button
-                onClick={() => setShowCreateModal(true)}
-                data-testid="create-episode-btn"
-                className="px-6 py-3 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-lg hover:from-purple-700 hover:to-pink-700 transition-all flex items-center space-x-2 font-semibold"
-              >
-                <Plus size={20} />
-                <span>New Episode</span>
-              </button>
+              <div className="flex items-center space-x-3">
+                {githubStatus && githubStatus.configured && (
+                  <div className="flex items-center space-x-2 px-4 py-2 bg-green-50 border border-green-200 rounded-lg">
+                    <Github size={18} className="text-green-600" />
+                    <span className="text-sm text-green-700 font-medium">GitHub Connected</span>
+                  </div>
+                )}
+                <button
+                  onClick={() => setShowCreateModal(true)}
+                  data-testid="create-episode-btn"
+                  className="px-6 py-3 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-lg hover:from-purple-700 hover:to-pink-700 transition-all flex items-center space-x-2 font-semibold"
+                >
+                  <Plus size={20} />
+                  <span>New Episode</span>
+                </button>
+              </div>
             </div>
 
             {loading ? (
@@ -82,7 +115,19 @@ const Episodes = () => {
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 {episodes.map((episode) => (
-                  <EpisodeCard key={episode.id} episode={episode} />
+                  <div key={episode.id} className="relative">
+                    <EpisodeCard episode={episode} />
+                    {githubStatus?.configured && (
+                      <button
+                        onClick={() => handlePushToGithub(episode.id)}
+                        data-testid={`push-to-github-${episode.id}`}
+                        className="absolute top-4 right-4 p-2 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-all shadow-sm"
+                        title="Push to GitHub"
+                      >
+                        <Github size={18} className="text-gray-700" />
+                      </button>
+                    )}
+                  </div>
                 ))}
               </div>
             )}

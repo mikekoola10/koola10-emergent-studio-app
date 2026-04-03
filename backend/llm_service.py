@@ -3,6 +3,7 @@ import os
 from dotenv import load_dotenv
 from pathlib import Path
 import logging
+from deepseek_service import deepseek_service
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
@@ -15,8 +16,8 @@ class LLMService:
         if not self.api_key:
             logger.error("EMERGENT_LLM_KEY not found in environment")
     
-    async def chat(self, user_message: str, session_id: str, system_message: str = None) -> str:
-        """Send a chat message and get response"""
+    async def chat(self, user_message: str, session_id: str, system_message: str = None, provider: str = "openai", model: str = "gpt-5.2") -> str:
+        """Send a chat message and get response with configurable provider/model"""
         try:
             if system_message is None:
                 system_message = """You are an AI assistant specialized in video production for KOOLA10's series.
@@ -36,11 +37,20 @@ class LLMService:
                 - Scene transitions
                 """
             
+            # Handle DeepSeek separately
+            if provider == "deepseek":
+                messages = [
+                    {"role": "system", "content": system_message},
+                    {"role": "user", "content": user_message}
+                ]
+                return await deepseek_service.chat(messages, model)
+            
+            # Use emergentintegrations for OpenAI, Anthropic, Gemini
             chat = LlmChat(
                 api_key=self.api_key,
                 session_id=session_id,
                 system_message=system_message
-            ).with_model("openai", "gpt-5.2")
+            ).with_model(provider, model)
             
             message = UserMessage(text=user_message)
             response = await chat.send_message(message)
@@ -50,7 +60,7 @@ class LLMService:
             logger.error(f"LLM chat error: {e}")
             return f"Error: {str(e)}"
     
-    async def generate_master_prompt(self, script: str) -> str:
+    async def generate_master_prompt(self, script: str, provider: str = "openai", model: str = "gpt-5.2") -> str:
         """Generate a master Emergent prompt from a script"""
         system_message = """You are an expert at converting video scripts into comprehensive Emergent video generation prompts.
         
@@ -69,9 +79,9 @@ class LLMService:
         Format the output as a complete, ready-to-use prompt for video generation.
         """
         
-        return await self.chat(f"Convert this script into a master Emergent video generation prompt:\n\n{script}", "master_prompt_gen", system_message)
+        return await self.chat(f"Convert this script into a master Emergent video generation prompt:\n\n{script}", "master_prompt_gen", system_message, provider, model)
     
-    async def format_script(self, raw_text: str) -> str:
+    async def format_script(self, raw_text: str, provider: str = "openai", model: str = "gpt-5.2") -> str:
         """Format raw text into Option C script format"""
         system_message = """You are an expert at formatting video scripts into Option C format.
         
@@ -87,9 +97,9 @@ class LLMService:
         Format the provided text into this structure.
         """
         
-        return await self.chat(f"Format this into Option C script format:\n\n{raw_text}", "script_format", system_message)
+        return await self.chat(f"Format this into Option C script format:\n\n{raw_text}", "script_format", system_message, provider, model)
     
-    async def breakdown_scenes(self, script: str) -> str:
+    async def breakdown_scenes(self, script: str, provider: str = "openai", model: str = "gpt-5.2") -> str:
         """Break down a script into individual scenes"""
         system_message = """You are an expert at analyzing video scripts and breaking them into scenes.
         
@@ -105,7 +115,7 @@ class LLMService:
         Return as a structured JSON list.
         """
         
-        return await self.chat(f"Break down this script into scenes:\n\n{script}", "scene_breakdown", system_message)
+        return await self.chat(f"Break down this script into scenes:\n\n{script}", "scene_breakdown", system_message, provider, model)
 
 # Global instance
 llm_service = LLMService()

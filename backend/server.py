@@ -15,6 +15,7 @@ from models import *
 from auth import get_password_hash, verify_password, create_access_token, get_current_user
 from storage import s3_storage
 from llm_service import llm_service
+from github_service import github_service
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
@@ -548,16 +549,136 @@ async def update_production_tracking(episode_id: str, tracking_data: ProductionT
     return ProductionTracking(**updated)
 
 # =====================
+# GITHUB INTEGRATION ROUTES
+# =====================
+
+@api_router.post("/github/push-episode")
+async def github_push_episode(episode_id: str, current_user: dict = Depends(get_current_user)):
+    """Push episode to GitHub repository"""
+    # Get episode data
+    episode = await db.episodes.find_one({"id": episode_id, "user_id": current_user['user_id']}, {"_id": 0})
+    if not episode:
+        raise HTTPException(status_code=404, detail="Episode not found")
+    
+    result = github_service.push_episode_to_github(episode)
+    return result
+
+@api_router.post("/github/sync-episode")
+async def github_sync_episode(episode_id: str, current_user: dict = Depends(get_current_user)):
+    """Sync episode from GitHub repository"""
+    result = github_service.sync_from_github(episode_id)
+    return result
+
+@api_router.get("/github/status")
+async def github_status(current_user: dict = Depends(get_current_user)):
+    """Get GitHub repository status"""
+    return github_service.get_repo_status()
+
+# =====================
+# CHAT WITH MODEL SELECTION
+# =====================
+
+@api_router.post("/chat/with-model", response_model=ChatMessage)
+async def send_chat_with_model(
+    content: str = Form(...), 
+    role: str = Form("user"),
+    episode_id: Optional[str] = Form(None),
+    provider: str = Form("openai"),
+    model: str = Form("gpt-5.2"),
+    current_user: dict = Depends(get_current_user)
+):
+    """Send a chat message with specific LLM provider and model"""
+    # Save user message
+    user_msg = ChatMessage(
+        content=content,
+        role=role,
+        episode_id=episode_id,
+        user_id=current_user['user_id']
+    )
+    
+    doc = user_msg.model_dump()
+    doc['created_at'] = doc['created_at'].isoformat()
+    await db.chat_messages.insert_one(doc)
+    
+    # Get AI response with selected model
+    session_id = episode_id if episode_id else current_user['user_id']
+    ai_response_text = await llm_service.chat(content, session_id, None, provider, model)
+    
+    # Save AI response
+    ai_msg = ChatMessage(
+        content=ai_response_text,
+        role="assistant",
+        episode_id=episode_id,
+        user_id=current_user['user_id']
+    )
+    
+    ai_doc = ai_msg.model_dump()
+    ai_doc['created_at'] = ai_doc['created_at'].isoformat()
+    await db.chat_messages.insert_one(ai_doc)
+    
+    return ai_msg
+
+@api_router.get("/chat/available-models")
+async def get_available_models(current_user: dict = Depends(get_current_user)):
+    """Get list of available LLM models"""
+    from deepseek_service import deepseek_service
+    
+    return {
+        "providers": {
+            "openai": {
+                "name": "OpenAI",
+                "models": [
+                    {"id": "gpt-5.2", "name": "GPT-5.2", "recommended": True},
+                    {"id": "gpt-5.1", "name": "GPT-5.1"},
+                    {"id": "gpt-4o", "name": "GPT-4o"},
+                    {"id": "gpt-4", "name": "GPT-4"}
+                ],
+                "configured": True
+            },
+            "anthropic": {
+                "name": "Anthropic Claude",
+                "models": [
+                    {"id": "claude-4-sonnet-20250514", "name": "Claude 4 Sonnet", "recommended": True},
+                    {"id": "claude-sonnet-4-6", "name": "Claude Sonnet 4.6"},
+                    {"id": "claude-opus-4-6", "name": "Claude Opus 4.6"}
+                ],
+                "configured": True
+            },
+            "gemini": {
+                "name": "Google Gemini",
+                "models": [
+                    {"id": "gemini-2.5-pro", "name": "Gemini 2.5 Pro", "recommended": True},
+                    {"id": "gemini-3-flash-preview", "name": "Gemini 3 Flash"},
+                    {"id": "gemini-3-pro-preview", "name": "Gemini 3 Pro"}
+                ],
+                "configured": True
+            },
+            "deepseek": {
+                "name": "DeepSeek AI",
+                "models": [
+                    {"id": "deepseek-chat", "name": "DeepSeek Chat", "recommended": True},
+                    {"id": "deepseek-reasoner", "name": "DeepSeek Reasoner (R1)"}
+                ],
+                "configured": deepseek_service.is_configured()
+            }
+        }
+    }
+
+# =====================
 # HEALTH CHECK
 # =====================
 
 @api_router.get("/health")
 async def health_check():
     """Health check endpoint"""
+    from deepseek_service import deepseek_service
+    
     return {
         "status": "healthy",
         "s3_configured": s3_storage.is_configured(),
         "llm_configured": llm_service.api_key is not None,
+        "github_configured": github_service.is_configured(),
+        "deepseek_configured": deepseek_service.is_configured(),
         "timestamp": datetime.now(timezone.utc).isoformat()
     }
 

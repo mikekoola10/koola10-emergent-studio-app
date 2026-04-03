@@ -67,7 +67,18 @@ export const scenesAPI = {
 
 export const chatAPI = {
   sendMessage: (data) => api.post('/chat', data),
+  sendMessageWithModel: (content, provider, model, episodeId = null) => {
+    const formData = new FormData();
+    formData.append('content', content);
+    formData.append('provider', provider);
+    formData.append('model', model);
+    if (episodeId) formData.append('episode_id', episodeId);
+    return api.post('/chat/with-model', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+  },
   getHistory: (episodeId, limit = 100) => api.get('/chat', { params: { episode_id: episodeId, limit } }),
+  getAvailableModels: () => api.get('/chat/available-models'),
   generatePrompt: (script) => {
     const formData = new FormData();
     formData.append('script', script);
@@ -120,6 +131,12 @@ export const productionAPI = {
 
 export const healthAPI = {
   check: () => api.get('/health'),
+};
+
+export const githubAPI = {
+  pushEpisode: (episodeId) => api.post('/github/push-episode', null, { params: { episode_id: episodeId } }),
+  syncEpisode: (episodeId) => api.post('/github/sync-episode', null, { params: { episode_id: episodeId } }),
+  getStatus: () => api.get('/github/status'),
 };
 
 export default api;

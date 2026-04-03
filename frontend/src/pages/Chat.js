@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Send, Loader } from 'lucide-react';
+import { Send, Loader, Bot } from 'lucide-react';
 import Sidebar from '../components/Sidebar';
 import Header from '../components/Header';
 import ChatMessage from '../components/ChatMessage';
@@ -11,8 +11,15 @@ const Chat = () => {
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
   const [currentEpisode, setCurrentEpisode] = useState(null);
+  const [selectedProvider, setSelectedProvider] = useState('openai');
+  const [selectedModel, setSelectedModel] = useState('gpt-5.2');
+  const [availableModels, setAvailableModels] = useState(null);
   const messagesEndRef = useRef(null);
   const { user } = useAuth();
+
+  useEffect(() => {
+    loadAvailableModels();
+  }, []);
 
   useEffect(() => {
     loadChatHistory();
@@ -24,6 +31,15 @@ const Chat = () => {
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  };
+
+  const loadAvailableModels = async () => {
+    try {
+      const response = await chatAPI.getAvailableModels();
+      setAvailableModels(response.data);
+    } catch (error) {
+      console.error('Failed to load available models:', error);
+    }
   };
 
   const loadChatHistory = async () => {
@@ -43,16 +59,18 @@ const Chat = () => {
     setLoading(true);
 
     try {
-      const response = await chatAPI.sendMessage({
-        content: userMessage,
-        role: 'user',
-        episode_id: currentEpisode?.id,
-      });
+      const response = await chatAPI.sendMessageWithModel(
+        userMessage,
+        selectedProvider,
+        selectedModel,
+        currentEpisode?.id
+      );
 
       // Reload messages to get both user message and AI response
       await loadChatHistory();
     } catch (error) {
       console.error('Failed to send message:', error);
+      alert('Failed to send message. Check if the selected model is configured.');
     } finally {
       setLoading(false);
     }
@@ -154,6 +172,44 @@ const Chat = () => {
             {/* Input Area */}
             <div className="border-t border-gray-200 bg-white p-4">
               <div className="max-w-4xl mx-auto">
+                {/* Model Selection */}
+                {availableModels && (
+                  <div className="flex items-center space-x-3 mb-3 p-3 bg-gray-50 rounded-lg">
+                    <Bot size={18} className="text-gray-600" />
+                    <span className="text-sm font-medium text-gray-700">AI Model:</span>
+                    <select
+                      value={selectedProvider}
+                      onChange={(e) => {
+                        setSelectedProvider(e.target.value);
+                        // Set default model for provider
+                        const provider = availableModels.providers[e.target.value];
+                        const defaultModel = provider.models.find(m => m.recommended)?.id || provider.models[0].id;
+                        setSelectedModel(defaultModel);
+                      }}
+                      data-testid="provider-select"
+                      className="px-3 py-1 border border-gray-300 rounded text-sm focus:ring-2 focus:ring-purple-500"
+                    >
+                      {Object.entries(availableModels.providers).map(([key, provider]) => (
+                        <option key={key} value={key} disabled={!provider.configured}>
+                          {provider.name} {!provider.configured && '(Not Configured)'}
+                        </option>
+                      ))}
+                    </select>
+                    <select
+                      value={selectedModel}
+                      onChange={(e) => setSelectedModel(e.target.value)}
+                      data-testid="model-select"
+                      className="px-3 py-1 border border-gray-300 rounded text-sm focus:ring-2 focus:ring-purple-500"
+                    >
+                      {availableModels.providers[selectedProvider]?.models.map((model) => (
+                        <option key={model.id} value={model.id}>
+                          {model.name} {model.recommended && '⭐'}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+                
                 <div className="flex space-x-4">
                   <textarea
                     value={input}
