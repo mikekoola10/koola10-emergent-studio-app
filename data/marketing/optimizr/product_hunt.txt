@@ -1,0 +1,11 @@
+Optimizr: The No-Nonsense Image Optimization API
+
+Stop letting heavy assets kill your conversion rates. Optimizr provides a simple, robust API to optimize your images on the fly.
+
+🚀 Features:
+- Instant WebP Conversion
+- Adaptive resizing based on device
+- Global CDN delivery via Fly.io
+- Simple /mo flat pricing
+
+Check it out: https://optimizr-k10.fly.dev

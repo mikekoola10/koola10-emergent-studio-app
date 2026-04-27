@@ -1,0 +1,11 @@
+Show HN: Optimizr – A fast, lightweight image optimization API wrapper
+
+Hi HN,
+
+We built Optimizr to solve a recurring problem: heavy images slowing down our agent-based apps. It's an API wrapper that handles WebP conversion, smart compression, and adaptive resizing out of the box.
+
+- Live URL: https://optimizr-k10.fly.dev
+- Pricing: /month (unlimited for early adopters)
+- Tech: Built by the Koola10 Forge vertical
+
+Would love your feedback on the latency and compression ratios!
