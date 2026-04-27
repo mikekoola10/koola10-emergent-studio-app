@@ -1,0 +1,3 @@
+timestamp,action,vertical,strategy,pair,size,status
+2026-04-27T16:06:48Z,LIVE_ACTIVATION,trading,Momentum,BTC/ETH,0.01 BTC,ACTIVE
+2026-04-27T16:07:06Z,POSITION_OPEN,trading,Momentum,BTC/ETH,0.01 BTC,ACTIVE
