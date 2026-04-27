@@ -1,0 +1,29 @@
+POST 1 (Twitter):
+Images killing your lighthouse score? 📉 We built Optimizr to fix that. WebP, smart compression, and resizing in one API call. https://optimizr-k10.fly.dev #SaaS #WebPerf
+
+POST 2 (Twitter):
+Why $9/mo for image optimization? Because we believe in simple, predictable pricing for developers. No hidden tiers. Just speed. ⚡️
+
+POST 3 (Twitter):
+Optimizr isn't just a wrapper. It's the engine behind our agent swarms. Now it's yours. 🤖
+
+POST 4 (Twitter):
+Adaptive resizing is here. Serve the right size to the right device, automatically. Your mobile users will thank you. 📱
+
+POST 5 (LinkedIn):
+I'm excited to announce the launch of Optimizr! 🚀 We've spent the last few months perfecting a lightweight image optimization API to help teams scale without bloated assets. #SaaS #ProductLaunch
+
+POST 6 (LinkedIn):
+Performance matters. A 1s delay can cost 7% in conversions. Optimizr helps you claw that back with instant WebP conversion and smart compression. 🛠️ #WebDevelopment
+
+POST 7 (LinkedIn):
+Proud of the Forge vertical at Koola10 for shipping Optimizr. Micro-SaaS at its finest. Simple $9/mo pricing for developers who just want things to work.
+
+POST 8 (Reddit r/SaaS):
+I was tired of complex image APIs so I built a simple wrapper. Optimizr does WebP, compression, and resizing for $9/mo. AMA! https://optimizr-k10.fly.dev
+
+POST 9 (Reddit r/webdev):
+Show and Tell: Optimizr - Image optimization on Fly.io. WebP + smart resizing. Feedback welcome! Check it out: https://optimizr-k10.fly.dev
+
+POST 10 (Reddit r/indiehackers):
+Just shipped Optimizr. Image optimization should be easy and cheap. How do you handle assets in your side projects? https://optimizr-k10.fly.dev
