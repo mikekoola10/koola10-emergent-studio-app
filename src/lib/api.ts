@@ -73,6 +73,29 @@ export interface VideoJobStatus {
   error?: string;
 }
 
+export interface VerticalStatus {
+  vertical: string;
+  agentCount: number;
+  state: string;
+}
+
+export interface SwarmStatus {
+  verticals: VerticalStatus[];
+}
+
+export interface VerticalRevenue {
+  vertical: string;
+  revenue: number;
+}
+
+export interface SwarmRevenue {
+  revenues: VerticalRevenue[];
+}
+
+export interface SwarmReport {
+  report: string;
+}
+
 // API Methods
 export const apiClient = {
   // Studio Chat
@@ -121,6 +144,32 @@ export const apiClient = {
 
   getVideoJobStatus: async (jobId: string): Promise<VideoJobStatus> => {
     const response = await api.get<VideoJobStatus>(`/studio/video-job/${jobId}`);
+    return response.data;
+  },
+
+  // Swarm Ops
+  getSwarmStatus: async (): Promise<VerticalStatus[]> => {
+    const response = await api.get<VerticalStatus[]>('/swarm/status');
+    return response.data;
+  },
+
+  getSwarmRevenue: async (): Promise<VerticalRevenue[]> => {
+    const response = await api.get<VerticalRevenue[]>('/swarm/revenue');
+    return response.data;
+  },
+
+  getSwarmReport: async (): Promise<SwarmReport> => {
+    const response = await api.get<SwarmReport>('/swarm/report');
+    return response.data;
+  },
+
+  deployVertical: async (vertical: string, count: number = 10): Promise<{ message: string }> => {
+    const response = await api.post<{ message: string }>(`/swarm/${vertical}/deploy`, { count });
+    return response.data;
+  },
+
+  dispatchTask: async (vertical: string, task: string): Promise<{ message: string }> => {
+    const response = await api.post<{ message: string }>(`/swarm/${vertical}/dispatch`, { task });
     return response.data;
   },
 };
