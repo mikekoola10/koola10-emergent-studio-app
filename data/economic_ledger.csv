@@ -11,3 +11,5 @@ timestamp,action,vertical,strategy,pair,size,status
 2026-04-27T17:51:50Z,MARKETING_LAUNCH,forge,Optimizr,PH,DRAFT_READY,N/A
 2026-04-27T17:51:50Z,MARKETING_LAUNCH,forge,Optimizr,Reddit,DRAFT_READY,N/A
 2026-04-27T19:46:10Z,CONTENT_GEN,solara,Optimizr,Twitter/LinkedIn/Reddit,$0.05,SUCCESS
+2026-04-27T20:10:39Z,COMPLIANCE_REPORT_SALE,sage,Nebula Systems Audit,N/A,99.00,SUCCESS
+2026-04-27T20:10:39Z,SUBSCRIPTION_PLAN_ACTIVE,sage,Enterprise Bundle (7 Frameworks),N/A,1499.00/mo,SUCCESS
