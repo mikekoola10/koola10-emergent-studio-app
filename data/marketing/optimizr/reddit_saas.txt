@@ -4,7 +4,7 @@ Hey r/SaaS,
 
 Just launched Optimizr. It's a simple API wrapper that optimizes your images (WebP, resizing, compression) so you don't have to.
 
-I'm keeping it simple at /month.
+I'm keeping it simple at $9/month.
 
 Looking for the first 10 users to give it a spin and tell me what features are missing.
 

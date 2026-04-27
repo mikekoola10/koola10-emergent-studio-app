@@ -6,6 +6,6 @@ Stop letting heavy assets kill your conversion rates. Optimizr provides a simple
 - Instant WebP Conversion
 - Adaptive resizing based on device
 - Global CDN delivery via Fly.io
-- Simple /mo flat pricing
+- Simple $9/mo flat pricing
 
 Check it out: https://optimizr-k10.fly.dev
