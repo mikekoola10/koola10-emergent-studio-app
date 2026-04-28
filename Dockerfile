@@ -1,13 +1,16 @@
-FROM node:22-alpine AS builder
+FROM golang:1.22-alpine AS builder
 WORKDIR /app
-COPY package*.json ./
-RUN npm install
+COPY go.mod ./
+RUN go mod download
 COPY . .
-RUN npm run build
+RUN go build -o agent main.go
 
-FROM node:22-alpine
+FROM alpine:latest
+RUN apk add --no-cache ca-certificates
 WORKDIR /app
-RUN npm install -g serve
-COPY --from=builder /app/dist ./dist
-EXPOSE 3000
-CMD ["serve", "-s", "dist", "-l", "3000"]
+COPY --from=builder /app/agent .
+# We don't copy the data directory to ensure it is persistent if mounted,
+# but for this task we include it in the build if needed or assume it exists.
+COPY data ./data
+EXPOSE 8080
+CMD ["./agent"]
