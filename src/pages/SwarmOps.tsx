@@ -16,20 +16,54 @@ const SwarmOps: React.FC = () => {
   const [dispatchTask, setDispatchTask] = useState('')
   const [isDispatching, setIsDispatching] = useState(false)
   const [isDeploying, setIsDeploying] = useState<string | null>(null)
+  const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null)
+
+  const showToast = (message: string, type: 'success' | 'error' = 'success') => {
+    setToast({ message, type })
+    setTimeout(() => setToast(null), 5000)
+  }
 
   const fetchData = async () => {
     setIsLoading(true)
     setError(null)
     try {
-      const [statusData, revenueData, reportData] = await Promise.all([
-        apiClient.getSwarmStatus(),
-        apiClient.getSwarmRevenue(),
-        apiClient.getSwarmReport()
-      ])
+      // Use a timeout for the API calls to prevent hanging if the backend is slow
+      const timeoutPromise = new Promise((_, reject) =>
+        setTimeout(() => reject(new Error('Request timed out')), 5000)
+      );
+
+      const [statusRaw, revenueRaw, reportRaw] = await Promise.race([
+        Promise.all([
+          apiClient.getSwarmStatus(),
+          apiClient.getSwarmRevenue(),
+          apiClient.getSwarmReport()
+        ]),
+        timeoutPromise
+      ]) as [any, any, any];
+
+      // Map raw API responses to UI component state formats
+      const statusData: VerticalStatus[] = Object.entries(statusRaw).map(([name, agents]: [string, any]) => ({
+        vertical: name.charAt(0).toUpperCase() + name.slice(1),
+        agentCount: Array.isArray(agents) ? agents.length : 0,
+        state: Array.isArray(agents) && agents.some(a => a.status === 'active' || a.status === 'completed' || a.status === 'processing')
+          ? 'active'
+          : 'idle'
+      }));
+
+      const revenueData: VerticalRevenue[] = Object.entries(revenueRaw).map(([name, data]: [string, any]) => ({
+        vertical: name.charAt(0).toUpperCase() + name.slice(1),
+        revenue: typeof data === 'object' ? (data.revenue || 0) : 0
+      }));
+
+      const consolidatedReport: SwarmReport = {
+        report: Object.entries(reportRaw)
+          .map(([name, text]) => `### ${name.charAt(0).toUpperCase() + name.slice(1)}\n${text}`)
+          .join('\n\n')
+      };
 
       setStatus(statusData)
       setRevenue(revenueData)
-      setReport(reportData)
+      setReport(consolidatedReport)
 
       if (statusData.length > 0 && !dispatchVertical) {
         setDispatchVertical(statusData[0].vertical)
@@ -89,9 +123,10 @@ const SwarmOps: React.FC = () => {
     setIsDeploying(vertical)
     try {
       await apiClient.deployVertical(vertical, 10)
+      showToast(`10 agents deployed to ${vertical}`)
       await fetchData()
     } catch (err) {
-      alert(err instanceof Error ? err.message : 'Failed to deploy vertical')
+      showToast(err instanceof Error ? err.message : 'Failed to deploy vertical', 'error')
     } finally {
       setIsDeploying(null)
     }
@@ -104,11 +139,12 @@ const SwarmOps: React.FC = () => {
     setIsDispatching(true)
     try {
       await apiClient.dispatchTask(dispatchVertical, dispatchTask)
+      const taskPreview = dispatchTask.length > 20 ? dispatchTask.substring(0, 20) + '...' : dispatchTask
+      showToast(`Task dispatched to ${dispatchVertical}: "${taskPreview}"`)
       setDispatchTask('')
-      alert(`Task dispatched to ${dispatchVertical}`)
       await fetchData()
     } catch (err) {
-      alert(err instanceof Error ? err.message : 'Failed to dispatch task')
+      showToast(err instanceof Error ? err.message : 'Failed to dispatch task', 'error')
     } finally {
       setIsDispatching(false)
     }
@@ -120,7 +156,19 @@ const SwarmOps: React.FC = () => {
   const maxRevenue = Math.max(...revenue.map(r => r.revenue), 1)
 
   return (
-    <div className="flex flex-col min-h-screen bg-gradient-to-br from-koola-dark via-black to-koola-dark text-white p-8">
+    <div className="flex flex-col min-h-screen bg-gradient-to-br from-koola-dark via-black to-koola-dark text-white p-8 relative">
+      {/* Toast Notification */}
+      {toast && (
+        <div className={`fixed top-8 right-8 z-50 flex items-center gap-3 px-6 py-4 rounded-lg shadow-2xl border transition-all duration-500 animate-in fade-in slide-in-from-top-4 ${
+          toast.type === 'success'
+            ? 'bg-green-500/20 border-green-500 text-green-400'
+            : 'bg-red-500/20 border-red-500 text-red-400'
+        }`}>
+          {toast.type === 'success' ? <CheckCircle2 className="w-5 h-5" /> : <AlertCircle className="w-5 h-5" />}
+          <span className="font-medium">{toast.message}</span>
+        </div>
+      )}
+
       <header className="mb-8">
         <h1 className="text-4xl font-bold text-koola-cyan mb-2 flex items-center gap-3">
           <Activity className="w-10 h-10" />
@@ -195,8 +243,9 @@ const SwarmOps: React.FC = () => {
           </h2>
           <form onSubmit={handleDispatch} className="space-y-4">
             <div>
-              <label className="block text-sm text-gray-400 mb-1">Target Vertical</label>
+              <label htmlFor="vertical-select" className="block text-sm text-gray-400 mb-1">Target Vertical</label>
               <select
+                id="vertical-select"
                 value={dispatchVertical}
                 onChange={(e) => setDispatchVertical(e.target.value)}
                 className="w-full bg-black/60 border border-koola-cyan/30 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-koola-cyan"
@@ -207,8 +256,9 @@ const SwarmOps: React.FC = () => {
               </select>
             </div>
             <div>
-              <label className="block text-sm text-gray-400 mb-1">Task Description</label>
+              <label htmlFor="task-description" className="block text-sm text-gray-400 mb-1">Task Description</label>
               <textarea
+                id="task-description"
                 value={dispatchTask}
                 onChange={(e) => setDispatchTask(e.target.value)}
                 placeholder="Enter task details for the swarm..."

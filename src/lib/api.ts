@@ -79,21 +79,26 @@ export interface VerticalStatus {
   state: string;
 }
 
-export interface SwarmStatus {
-  verticals: VerticalStatus[];
-}
-
 export interface VerticalRevenue {
   vertical: string;
   revenue: number;
 }
 
-export interface SwarmRevenue {
-  revenues: VerticalRevenue[];
-}
-
 export interface SwarmReport {
   report: string;
+}
+
+// Raw API Response Types
+export interface SwarmStatusRaw {
+  [key: string]: Array<{ specialty: string; status: string }>;
+}
+
+export interface SwarmRevenueRaw {
+  [key: string]: { cost: number; profit: number; revenue: number };
+}
+
+export interface SwarmReportRaw {
+  [key: string]: string;
 }
 
 // API Methods
@@ -148,18 +153,18 @@ export const apiClient = {
   },
 
   // Swarm Ops
-  getSwarmStatus: async (): Promise<VerticalStatus[]> => {
-    const response = await api.get<VerticalStatus[]>('/swarm/status');
+  getSwarmStatus: async (): Promise<SwarmStatusRaw> => {
+    const response = await api.get<SwarmStatusRaw>('/swarm/status');
     return response.data;
   },
 
-  getSwarmRevenue: async (): Promise<VerticalRevenue[]> => {
-    const response = await api.get<VerticalRevenue[]>('/swarm/revenue');
+  getSwarmRevenue: async (): Promise<SwarmRevenueRaw> => {
+    const response = await api.get<SwarmRevenueRaw>('/swarm/revenue');
     return response.data;
   },
 
-  getSwarmReport: async (): Promise<SwarmReport> => {
-    const response = await api.get<SwarmReport>('/swarm/report');
+  getSwarmReport: async (): Promise<SwarmReportRaw> => {
+    const response = await api.get<SwarmReportRaw>('/swarm/report');
     return response.data;
   },
 
