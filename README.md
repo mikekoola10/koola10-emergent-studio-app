@@ -1,1 +1,1 @@
-# koola10-emergent-studio-app
+# koola10-ai-agent
