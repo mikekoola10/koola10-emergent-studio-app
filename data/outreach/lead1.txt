@@ -1,0 +1,3 @@
+To: tech_founder@example.com
+Subject: Accelerate your dev cycle with Forge
+Hi, I noticed your project. Forge can automate your boilerplate.
