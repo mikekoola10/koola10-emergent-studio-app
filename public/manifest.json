@@ -1,0 +1,16 @@
+{
+  "name": "Koola10 Emergent Studio",
+  "short_name": "Koola10",
+  "description": "The ultimate Diner experience for the Koola10 mythos.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#1E1B4B",
+  "theme_color": "#00F0FF",
+  "icons": [
+    {
+      "src": "vite.svg",
+      "sizes": "any",
+      "type": "image/svg+xml"
+    }
+  ]
+}
