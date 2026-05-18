@@ -1,6 +1,7 @@
 import React from 'react'
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom'
 import Sidebar from './components/Sidebar'
+import PortalWatch from './pages/PortalWatch'
 import StudioChat from './pages/StudioChat'
 import Episodes from './pages/Episodes'
 import LoreConsole from './pages/LoreConsole'
@@ -15,7 +16,8 @@ function App() {
         <Sidebar />
         <main className="flex-1 overflow-auto">
           <Routes>
-            <Route path="/" element={<ProductionDashboard />} />
+            <Route path="/" element={<PortalWatch />} />
+            <Route path="/dashboard" element={<ProductionDashboard />} />
             <Route path="/chat" element={<StudioChat />} />
             <Route path="/episodes" element={<Episodes />} />
             <Route path="/lore" element={<LoreConsole />} />
