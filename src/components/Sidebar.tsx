@@ -1,6 +1,6 @@
 import React from 'react'
 import { Link, useLocation } from 'react-router-dom'
-import { MessageSquare, Film, BookOpen, Palette, Video, BarChart3 } from 'lucide-react'
+import { MessageSquare, Film, BookOpen, Palette, Video, BarChart3, Activity } from 'lucide-react'
 
 const Sidebar: React.FC = () => {
   const location = useLocation()
@@ -14,6 +14,7 @@ const Sidebar: React.FC = () => {
     { path: '/lore', label: 'Lore Console', icon: BookOpen },
     { path: '/style', label: 'Style Engine', icon: Palette },
     { path: '/video', label: 'Video Orchestrator', icon: Video },
+    { path: '/swarm-ops', label: 'Swarm Ops', icon: Activity },
   ]
 
   return (

@@ -7,6 +7,7 @@ import LoreConsole from './pages/LoreConsole'
 import StyleEngine from './pages/StyleEngine'
 import VideoOrchestrator from './pages/VideoOrchestrator'
 import ProductionDashboard from './pages/ProductionDashboard'
+import SwarmOps from './pages/SwarmOps'
 
 function App() {
   return (
@@ -21,6 +22,7 @@ function App() {
             <Route path="/lore" element={<LoreConsole />} />
             <Route path="/style" element={<StyleEngine />} />
             <Route path="/video" element={<VideoOrchestrator />} />
+            <Route path="/swarm-ops" element={<SwarmOps />} />
           </Routes>
         </main>
       </div>
