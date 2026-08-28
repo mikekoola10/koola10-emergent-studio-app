@@ -1,0 +1,20 @@
+[
+  {
+    "to": "engineering@aether.example.com",
+    "subject": "Aether Dynamics: Full-Stack Automation",
+    "body": "Automate your dev cycle with Forge's micro-SaaS deployment engine.",
+    "timestamp": "2026-04-28T06:08:54.183043704Z"
+  },
+  {
+    "to": "ceo@biogenix.example.com",
+    "subject": "Accelerating BioGenix Research with Nova",
+    "body": "Hi, we can help BioGenix scale grant acquisition using our Nova swarm.",
+    "timestamp": "2026-04-28T06:08:54.183354928Z"
+  },
+  {
+    "to": "investments@sterling.example.com",
+    "subject": "Sterling Wealth: AI-Driven Portfolio Optimization",
+    "body": "Optimize your trading strategies with our Sterling economic swarm.",
+    "timestamp": "2026-04-28T06:08:54.183547979Z"
+  }
+]
