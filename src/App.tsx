@@ -7,6 +7,7 @@ import LoreConsole from './pages/LoreConsole'
 import StyleEngine from './pages/StyleEngine'
 import VideoOrchestrator from './pages/VideoOrchestrator'
 import ProductionDashboard from './pages/ProductionDashboard'
+import PortalWatch from './pages/PortalWatch'
 
 function App() {
   return (
@@ -15,7 +16,8 @@ function App() {
         <Sidebar />
         <main className="flex-1 overflow-auto">
           <Routes>
-            <Route path="/" element={<ProductionDashboard />} />
+            <Route path="/" element={<PortalWatch />} />
+            <Route path="/dashboard" element={<ProductionDashboard />} />
             <Route path="/chat" element={<StudioChat />} />
             <Route path="/episodes" element={<Episodes />} />
             <Route path="/lore" element={<LoreConsole />} />
