@@ -43,7 +43,7 @@ export interface LoreRequest {
 }
 
 export interface LoreResponse {
-  answer: string;
+  response: string;
 }
 
 export interface StyleRequest {
