@@ -1,6 +1,6 @@
 import React, { useState } from 'react'
 import { BookOpen, Send, Sparkles } from 'lucide-react'
-import { apiClient } from '../lib/api'
+import { apiClient, friendlyErrorMessage } from '../lib/api'
 import LoadingState from '../components/LoadingState'
 import ErrorState from '../components/ErrorState'
 import EmptyState from '../components/EmptyState'
@@ -36,7 +36,7 @@ const LoreConsole: React.FC = () => {
       const response = await apiClient.getLoreAnswer(trimmed)
       setHistory([{ question: trimmed, answer: response.answer }, ...history])
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to consult the lore')
+      setError(friendlyErrorMessage(err, 'Failed to consult the lore'))
     } finally {
       setIsLoading(false)
     }

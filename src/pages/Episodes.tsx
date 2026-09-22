@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { Plus, Calendar, Trash2 } from 'lucide-react'
-import { apiClient, Episode } from '../lib/api'
+import { apiClient, Episode, friendlyErrorMessage } from '../lib/api'
 import LoadingState from '../components/LoadingState'
 import ErrorState from '../components/ErrorState'
 import EmptyState from '../components/EmptyState'
@@ -25,9 +25,7 @@ const Episodes: React.FC = () => {
       const data = await apiClient.getEpisodes()
       setEpisodes(data)
     } catch (err) {
-      setError(
-        err instanceof Error ? err.message : 'Failed to fetch episodes'
-      )
+      setError(friendlyErrorMessage(err, 'Failed to fetch episodes'))
     } finally {
       setIsLoading(false)
     }

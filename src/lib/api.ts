@@ -18,6 +18,22 @@ const api: AxiosInstance = axios.create({
   },
 });
 
+// Turn a request failure into something a person can read.
+// Network-level failures (offline, DNS, bad URL, timeout) become a plain
+// "Network error" message; meaningful server replies keep their own message.
+export function friendlyErrorMessage(err: unknown, fallback: string): string {
+  if (axios.isAxiosError(err)) {
+    if (!err.response) {
+      return 'Network error. Please try again.';
+    }
+    const data = err.response.data as { error?: string } | undefined;
+    if (data && typeof data.error === 'string' && data.error.trim()) {
+      return data.error;
+    }
+  }
+  return fallback;
+}
+
 // Types
 export interface ChatMessage {
   role: 'user' | 'assistant';

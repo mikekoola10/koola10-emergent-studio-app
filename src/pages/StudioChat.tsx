@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react'
 import { Send, ChevronDown } from 'lucide-react'
-import { apiClient, ChatMessage } from '../lib/api'
+import { apiClient, ChatMessage, friendlyErrorMessage } from '../lib/api'
 import LoadingState from '../components/LoadingState'
 import ErrorState from '../components/ErrorState'
 import EmptyState from '../components/EmptyState'
@@ -46,9 +46,7 @@ const StudioChat: React.FC = () => {
       }
       setMessages([...updatedMessages, assistantMessage])
     } catch (err) {
-      setError(
-        err instanceof Error ? err.message : 'Failed to get response from the AI model'
-      )
+      setError(friendlyErrorMessage(err, 'Failed to get response from the AI model'))
       // Remove the user message if the request failed
       setMessages(messages)
     } finally {

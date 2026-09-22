@@ -1,6 +1,6 @@
 import React, { useState } from 'react'
 import { Palette, Wand2, Copy, Check } from 'lucide-react'
-import { apiClient, StyleResponse } from '../lib/api'
+import { apiClient, StyleResponse, friendlyErrorMessage } from '../lib/api'
 import LoadingState from '../components/LoadingState'
 import ErrorState from '../components/ErrorState'
 import EmptyState from '../components/EmptyState'
@@ -25,7 +25,7 @@ const StyleEngine: React.FC = () => {
       const response = await apiClient.getStyleRules(scene.trim())
       setResult(response)
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to generate style rules')
+      setError(friendlyErrorMessage(err, 'Failed to generate style rules'))
     } finally {
       setIsLoading(false)
     }

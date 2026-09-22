@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react'
 import { Video, Clapperboard, ExternalLink, XCircle } from 'lucide-react'
-import { apiClient, VideoJobStatus } from '../lib/api'
+import { apiClient, VideoJobStatus, friendlyErrorMessage } from '../lib/api'
 import LoadingState from '../components/LoadingState'
 import ErrorState from '../components/ErrorState'
 import EmptyState from '../components/EmptyState'
@@ -75,7 +75,7 @@ const VideoOrchestrator: React.FC = () => {
       setActiveJob({ ...job, status: job.status as VideoJobStatus['status'] })
       setPrompt('')
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to start video job')
+      setError(friendlyErrorMessage(err, 'Failed to start video job'))
     } finally {
       setIsStarting(false)
     }
