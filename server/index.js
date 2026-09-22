@@ -21,7 +21,7 @@ const LORE_PATH = process.env.LORE_PATH
   ? path.resolve(process.env.LORE_PATH)
   : path.resolve(__dirname, '..', 'episodes', 'universe', 'scripts', 'MASTER_BIBLE.md');
 
-const DEFAULT_MODEL = 'gemini-2.0-flash';
+const DEFAULT_MODEL = 'gemini-2.5-flash';
 const VIDEO_STUB_ERROR =
   'Video generation is not connected yet — the studio backend has no video provider configured.';
 
@@ -131,7 +131,14 @@ async function geminiGenerate({ model, systemInstruction, contents }) {
     throw e;
   }
   if (!res.ok) {
-    const e = new Error(`AI service returned ${res.status}.`);
+    let detail = '';
+    try {
+      const errJson = await res.json();
+      detail = errJson?.error?.message ? ` ${String(errJson.error.message).slice(0, 200)}` : '';
+    } catch {
+      /* ignore parse errors */
+    }
+    const e = new Error(`AI service returned ${res.status}.${detail}`);
     e.status = 502;
     throw e;
   }
