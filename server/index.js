@@ -21,7 +21,7 @@ const LORE_PATH = process.env.LORE_PATH
   ? path.resolve(process.env.LORE_PATH)
   : path.resolve(__dirname, '..', 'episodes', 'universe', 'scripts', 'MASTER_BIBLE.md');
 
-const DEFAULT_MODEL = 'gemini-2.5-flash';
+const DEFAULT_MODEL = 'gemini-3.6-flash';
 const VIDEO_STUB_ERROR =
   'Video generation is not connected yet — the studio backend has no video provider configured.';
 
