@@ -1,6 +1,15 @@
 import axios, { AxiosInstance } from 'axios';
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://koola10.fly.dev';
+function normalizeApiBaseUrl(raw: string): string {
+  let url = (raw || '').trim();
+  // Repair a common typo: "https:/host" (single slash) -> "https://host"
+  url = url.replace(/^([a-zA-Z][a-zA-Z0-9+.-]*):\/(?!\/)/, '$1://');
+  // Strip trailing slashes so path joins stay clean
+  return url.replace(/\/+$/, '');
+}
+
+const API_BASE_URL =
+  normalizeApiBaseUrl(import.meta.env.VITE_API_BASE_URL || '') || 'https://koola10.fly.dev';
 
 const api: AxiosInstance = axios.create({
   baseURL: API_BASE_URL,
