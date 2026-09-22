@@ -8,7 +8,7 @@ function normalizeApiBaseUrl(raw: string): string {
   return url.replace(/\/+$/, '');
 }
 
-const API_BASE_URL =
+export const API_BASE_URL =
   normalizeApiBaseUrl(import.meta.env.VITE_API_BASE_URL || '') || 'https://koola10.fly.dev';
 
 const api: AxiosInstance = axios.create({
@@ -154,6 +154,33 @@ export const apiClient = {
       messages,
     });
     return response.data;
+  },
+  // Beat Lab — Nova listens to an uploaded bounce (uses fetch so the browser
+  // sets the multipart boundary; axios's default JSON Content-Type would break it)
+  beatlabListen: async (audio: File, question: string): Promise<ChatResponse> => {
+    const form = new FormData();
+    form.append('audio', audio);
+    form.append('question', question);
+    let res: Response;
+    try {
+      res = await fetch(`${API_BASE_URL}/ai/beatlab-listen`, {
+        method: 'POST',
+        body: form,
+      });
+    } catch {
+      throw new Error('Network error. Please try again.');
+    }
+    if (!res.ok) {
+      let msg = 'Nova could not hear that bounce. Please try again.';
+      try {
+        const data = (await res.json()) as { error?: string };
+        if (data && typeof data.error === 'string' && data.error.trim()) msg = data.error;
+      } catch {
+        /* keep fallback */
+      }
+      throw new Error(msg);
+    }
+    return (await res.json()) as ChatResponse;
   },
 };
 

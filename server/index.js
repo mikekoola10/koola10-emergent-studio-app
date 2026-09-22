@@ -12,6 +12,7 @@ const fs = require('fs');
 const crypto = require('crypto');
 const express = require('express');
 const cors = require('cors');
+const multer = require('multer');
 
 const PORT = parseInt(process.env.PORT || '3001', 10);
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY || '';
@@ -251,6 +252,81 @@ app.post('/ai/beatlab', async (req, res) => {
   } catch (err) {
     res.status(err.status || 500).json({ error: err.message || 'Beat Lab failed.' });
   }
+});
+
+// --- Beat Lab: Nova LISTENS to an uploaded bounce and critiques the mix ---
+// The user exports an MP3/WAV bounce from FL Studio on their laptop, attaches
+// it here, and Gemini hears the actual audio (inline_data). Nova then gives a
+// real mix critique with FL Studio-specific fixes. Max 15MB keeps us safely
+// under Gemini's 20MB inline request limit (a 3-min 128kbps MP3 is ~3MB).
+const uploadAudio = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 15 * 1024 * 1024 },
+  fileFilter: (_req, file, cb) => {
+    const okType = /^audio\//.test(file.mimetype || '');
+    const okExt = /\.(mp3|wav|ogg|oga|m4a|aac|flac|opus|webm)$/i.test(file.originalname || '');
+    if (okType || okExt) return cb(null, true);
+    cb(new Error('Only audio files are accepted (mp3, wav, ogg, m4a, aac, flac).'));
+  },
+}).single('audio');
+
+const BEATLAB_LISTEN_SYSTEM = `You are Nova, the mixing and mastering coach inside Koola10 Emergent Studio. The person you're helping makes hip-hop beats in FL Studio (currently FL Studio 25) on their laptop, and these beats are the soundtrack of their virtual world — quality matters to them.
+
+You are now LISTENING to an actual bounce of their beat (audio is attached to the message). Give a real mix critique based on what you HEAR — not generic advice. Structure it like this:
+1. First impression (one or two sentences — what hits you, good or bad).
+2. Low end — kick/808 relationship, mud, weight. Name what you hear.
+3. Mids & highs — harshness, clarity, presence. Name frequencies you suspect.
+4. Dynamics & loudness — does it breathe, does it feel squashed, how does the energy compare to a finished record.
+5. Stereo image & space — width, reverb/delay use, anything phasey or hollow.
+6. Top 3 fixes, in order of impact, each with the exact FL Studio stock plugin and starting settings (Parametric EQ 2, Fruity Compressor, Fruity Limiter, Maximus, Fruity Reeverb 2, Delay 3, etc. — frequencies, ratios, attack/release times, and WHY each move works).
+
+Rules:
+- Be specific about what you hear. If a section is unclear or the audio is too short to judge something, say so instead of inventing detail.
+- Honest caveat, stated once: you're hearing a compressed stream, not their studio monitors — flag what you're confident about vs. what they should verify on their own speakers/headphones.
+- If they asked a specific question, answer it first, then give the critique.
+- Keep it scannable: short intro, then the numbered sections. No fluff.
+- Stay in character as Nova: warm, direct, studio-rat energy.`;
+
+app.post('/ai/beatlab-listen', (req, res) => {
+  uploadAudio(req, res, async (err) => {
+    if (err) {
+      const msg =
+        err.code === 'LIMIT_FILE_SIZE'
+          ? 'That file is too big — keep bounces under 15MB (a 128kbps MP3 bounce is plenty for a mix check).'
+          : err.message || 'Could not read the uploaded audio.';
+      return res.status(400).json({ error: msg });
+    }
+    if (!req.file) {
+      return res.status(400).json({ error: 'Attach a bounce first (mp3, wav, ogg, m4a, aac, flac).' });
+    }
+    if (!requireAiKey(res)) return;
+    const question = typeof req.body?.question === 'string' ? req.body.question.trim() : '';
+    const audioBase64 = req.file.buffer.toString('base64');
+    const mimeType = req.file.mimetype || 'audio/mpeg';
+    const prompt = question
+      ? `The producer asks: "${question}"\n\nAnswer their question first, then give your full mix critique of the attached bounce.`
+      : 'Give your full mix critique of the attached bounce.';
+    try {
+      const data = await geminiGenerate({
+        model: DEFAULT_MODEL,
+        systemInstruction: BEATLAB_LISTEN_SYSTEM,
+        contents: [
+          {
+            role: 'user',
+            parts: [
+              { text: prompt },
+              { inline_data: { mime_type: mimeType, data: audioBase64 } },
+            ],
+          },
+        ],
+      });
+      const text = extractText(data);
+      if (!text) return res.status(502).json({ error: 'AI returned an empty response.' });
+      res.json({ response: text, model: DEFAULT_MODEL });
+    } catch (err2) {
+      res.status(err2.status || 500).json({ error: err2.message || 'Beat Lab listen failed.' });
+    }
+  });
 });
 
 // --- Episodes ---

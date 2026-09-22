@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react'
-import { Send, AudioWaveform } from 'lucide-react'
+import { Send, AudioWaveform, Paperclip, X } from 'lucide-react'
 import { apiClient, ChatMessage, friendlyErrorMessage } from '../lib/api'
 import LoadingState from '../components/LoadingState'
 import ErrorState from '../components/ErrorState'
@@ -19,7 +19,10 @@ const BeatLab: React.FC = () => {
   const [inputValue, setInputValue] = useState('')
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [audioFile, setAudioFile] = useState<File | null>(null)
+  const [isListening, setIsListening] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -29,18 +32,36 @@ const BeatLab: React.FC = () => {
     scrollToBottom()
   }, [messages])
 
-  const sendMessage = async (text: string) => {
-    if (!text.trim() || isLoading) return
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0] || null
+    setAudioFile(file)
+    // Reset the input so the same file can be picked again after removing it
+    e.target.value = ''
+  }
 
-    const userMessage: ChatMessage = { role: 'user', content: text }
+  const sendMessage = async (text: string) => {
+    if ((!text.trim() && !audioFile) || isLoading) return
+
+    const label = audioFile
+      ? `🎧 ${audioFile.name}${text.trim() ? `\n${text.trim()}` : ''}`
+      : text
+    const userMessage: ChatMessage = { role: 'user', content: label }
     const updatedMessages = [...messages, userMessage]
     setMessages(updatedMessages)
     setInputValue('')
+    const attachedFile = audioFile
+    setAudioFile(null)
     setError(null)
+    setIsListening(!!attachedFile)
     setIsLoading(true)
 
     try {
-      const response = await apiClient.beatlab(updatedMessages)
+      let response
+      if (attachedFile) {
+        response = await apiClient.beatlabListen(attachedFile, text.trim())
+      } else {
+        response = await apiClient.beatlab(updatedMessages)
+      }
       const assistantMessage: ChatMessage = {
         role: 'assistant',
         content: response.response,
@@ -51,6 +72,7 @@ const BeatLab: React.FC = () => {
       setMessages(messages)
     } finally {
       setIsLoading(false)
+      setIsListening(false)
     }
   }
 
@@ -123,25 +145,62 @@ const BeatLab: React.FC = () => {
           </div>
         ))}
 
-        {isLoading && <LoadingState message="Nova is listening to your description..." />}
+        {isLoading && (
+          <LoadingState
+            message={isListening ? 'Nova is listening to your bounce...' : 'Nova is working on it...'}
+          />
+        )}
 
         <div ref={messagesEndRef} />
       </div>
 
       {/* Input Form */}
       <div className="border-t border-koola-cyan/20 bg-koola-purple/20 px-6 py-4">
+        {audioFile && (
+          <div className="flex items-center gap-2 mb-3 max-w-2xl mx-auto">
+            <span className="inline-flex items-center gap-2 px-3 py-1.5 text-sm bg-koola-cyan/10 border border-koola-cyan/40 text-koola-cyan rounded-full">
+              <AudioWaveform size={14} />
+              {audioFile.name}
+            </span>
+            <button
+              onClick={() => setAudioFile(null)}
+              disabled={isLoading}
+              className="p-1.5 text-gray-400 hover:text-white transition-colors disabled:opacity-50"
+              aria-label="Remove attached audio"
+            >
+              <X size={16} />
+            </button>
+          </div>
+        )}
         <form onSubmit={handleSendMessage} className="flex gap-3">
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="audio/*,.mp3,.wav,.ogg,.oga,.m4a,.aac,.flac,.opus,.webm"
+            onChange={handleFileSelect}
+            className="hidden"
+          />
+          <button
+            type="button"
+            onClick={() => fileInputRef.current?.click()}
+            disabled={isLoading}
+            className="px-4 py-3 bg-koola-purple/40 border border-koola-cyan/30 text-koola-cyan rounded-lg hover:bg-koola-purple/60 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center"
+            aria-label="Attach a bounce for Nova to hear"
+            title="Attach a bounce (mp3, wav, ogg, m4a, flac — up to 15MB)"
+          >
+            <Paperclip size={18} />
+          </button>
           <input
             type="text"
             value={inputValue}
             onChange={(e) => setInputValue(e.target.value)}
-            placeholder="e.g. my hi-hats sound harsh..."
+            placeholder={audioFile ? 'Ask about this bounce (optional)...' : 'e.g. my hi-hats sound harsh...'}
             disabled={isLoading}
             className="flex-1 px-4 py-3 bg-koola-dark border border-koola-cyan/30 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:border-koola-cyan transition-colors disabled:opacity-50"
           />
           <button
             type="submit"
-            disabled={isLoading || !inputValue.trim()}
+            disabled={isLoading || (!inputValue.trim() && !audioFile)}
             className="px-6 py-3 bg-koola-cyan text-koola-dark font-semibold rounded-lg hover:bg-koola-cyan/80 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-2"
           >
             <Send size={18} />
@@ -149,7 +208,7 @@ const BeatLab: React.FC = () => {
           </button>
         </form>
         <p className="text-xs text-gray-500 mt-2 text-center">
-          Nova coaches from your description — she can&apos;t hear audio, but she knows the craft.
+          Attach a bounce and Nova will actually listen to it — or just describe the problem and she&apos;ll coach from that.
         </p>
       </div>
     </div>
