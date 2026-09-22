@@ -1,6 +1,6 @@
 import React from 'react'
 import { Link, useLocation } from 'react-router-dom'
-import { MessageSquare, Film, BookOpen, Palette, Video, BarChart3 } from 'lucide-react'
+import { MessageSquare, Film, BookOpen, Palette, Video, BarChart3, AudioWaveform } from 'lucide-react'
 
 const Sidebar: React.FC = () => {
   const location = useLocation()
@@ -10,6 +10,7 @@ const Sidebar: React.FC = () => {
   const navItems = [
     { path: '/', label: 'Dashboard', icon: BarChart3 },
     { path: '/chat', label: 'Studio Chat', icon: MessageSquare },
+    { path: '/beatlab', label: 'Beat Lab', icon: AudioWaveform },
     { path: '/episodes', label: 'Episodes', icon: Film },
     { path: '/lore', label: 'Lore Console', icon: BookOpen },
     { path: '/style', label: 'Style Engine', icon: Palette },

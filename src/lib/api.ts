@@ -148,6 +148,13 @@ export const apiClient = {
     const response = await api.get<VideoJobStatus>(`/studio/video-job/${jobId}`);
     return response.data;
   },
+  // Beat Lab — mixing & mastering coach
+  beatlab: async (messages: ChatMessage[]): Promise<ChatResponse> => {
+    const response = await api.post<ChatResponse>('/ai/beatlab', {
+      messages,
+    });
+    return response.data;
+  },
 };
 
 export default api;

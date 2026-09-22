@@ -218,6 +218,41 @@ app.post('/ai/chat', async (req, res) => {
   }
 });
 
+// --- Beat Lab: Nova as a mixing & mastering coach ---
+// The user produces beats in FL Studio. This endpoint answers mixing/mastering
+// questions with concrete, FL-Studio-specific guidance (stock plugins, settings,
+// signal chains). It cannot hear audio — it coaches from the user's description.
+const BEATLAB_SYSTEM = `You are Nova, the mixing and mastering coach inside Koola10 Emergent Studio. The person you're helping makes hip-hop beats in FL Studio (currently FL Studio 25) and wants them to sound professional — these beats are the soundtrack of their virtual world, so quality matters to them.
+
+How you work:
+- Give concrete, actionable answers: exact FL Studio stock plugins (Parametric EQ 2, Fruity Compressor, Fruity Limiter, Maximus, Fruity Reeverb 2, Delay 3, Soundgoodizer, etc.), starting settings with numbers (frequencies, ratios, attack/release times), and why each move works.
+- Diagnose from descriptions: if they say "my 808 is muddy" or "vocals sound buried," walk through the likely causes in order and give fixes.
+- Cover the full craft: gain staging, EQ, compression, saturation, stereo imaging, reverb/delay, arrangement balance, mix bus processing, and mastering chains with loudness targets for streaming (Spotify/Apple/YouTube, around -14 LUFS integrated, true peak under -1 dBTP).
+- Keep answers focused and scannable: short intro, then steps or bullet points. No fluff, no generic motivational filler.
+- When a question is ambiguous, ask one clarifying question instead of guessing (e.g. "is the muddiness on laptop speakers, headphones, or both?").
+- Be honest about limits: you can't hear their audio, so your advice comes from their description. Never pretend you listened to a track.
+- Stay in character as Nova: warm, direct, studio-rat energy. You can reference the Koola10 Diner's "jukebox rule" (newest beat or shuffle) lightly when it fits, but the craft comes first.`;
+
+app.post('/ai/beatlab', async (req, res) => {
+  if (!requireAiKey(res)) return;
+  const { messages } = req.body || {};
+  if (!Array.isArray(messages) || messages.length === 0) {
+    return res.status(400).json({ error: 'messages must be a non-empty array.' });
+  }
+  try {
+    const data = await geminiGenerate({
+      model: DEFAULT_MODEL,
+      systemInstruction: BEATLAB_SYSTEM,
+      contents: geminiContentsFromMessages(messages),
+    });
+    const text = extractText(data);
+    if (!text) return res.status(502).json({ error: 'AI returned an empty response.' });
+    res.json({ response: text, model: DEFAULT_MODEL });
+  } catch (err) {
+    res.status(err.status || 500).json({ error: err.message || 'Beat Lab failed.' });
+  }
+});
+
 // --- Episodes ---
 app.get('/studio/episodes', async (_req, res) => {
   try {

@@ -7,9 +7,11 @@ import {
   Palette,
   Video,
   BarChart3,
+  AudioWaveform,
 } from 'lucide-react'
 import Sidebar from './components/Sidebar'
 import StudioChat from './pages/StudioChat'
+import BeatLab from './pages/BeatLab'
 import Episodes from './pages/Episodes'
 import LoreConsole from './pages/LoreConsole'
 import StyleEngine from './pages/StyleEngine'
@@ -19,6 +21,7 @@ import ProductionDashboard from './pages/ProductionDashboard'
 const navItems = [
   { path: '/', label: 'Dashboard', icon: BarChart3 },
   { path: '/chat', label: 'Chat', icon: MessageSquare },
+  { path: '/beatlab', label: 'Beat Lab', icon: AudioWaveform },
   { path: '/episodes', label: 'Episodes', icon: Film },
   { path: '/lore', label: 'Lore', icon: BookOpen },
   { path: '/style', label: 'Style', icon: Palette },
@@ -64,6 +67,7 @@ function App() {
             <Routes>
               <Route path="/" element={<ProductionDashboard />} />
               <Route path="/chat" element={<StudioChat />} />
+              <Route path="/beatlab" element={<BeatLab />} />
               <Route path="/episodes" element={<Episodes />} />
               <Route path="/lore" element={<LoreConsole />} />
               <Route path="/style" element={<StyleEngine />} />
