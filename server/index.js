@@ -22,6 +22,14 @@ const LORE_PATH = process.env.LORE_PATH
   : path.resolve(__dirname, '..', 'episodes', 'universe', 'scripts', 'MASTER_BIBLE.md');
 
 const DEFAULT_MODEL = 'gemini-3.6-flash';
+
+// The chat UI offers persona names (e.g. "nova") that are not real Gemini
+// model IDs. Only pass through names that look like actual Gemini models;
+// everything else falls back to the default so the request never 404s.
+function sanitizeModel(name) {
+  const m = typeof name === 'string' ? name.trim() : '';
+  return /^gemini-[a-z0-9.-]+$/i.test(m) ? m : DEFAULT_MODEL;
+}
 const VIDEO_STUB_ERROR =
   'Video generation is not connected yet — the studio backend has no video provider configured.';
 
@@ -196,7 +204,7 @@ app.post('/ai/chat', async (req, res) => {
   if (!Array.isArray(messages) || messages.length === 0) {
     return res.status(400).json({ error: 'messages must be a non-empty array.' });
   }
-  const useModel = typeof model === 'string' && model.trim() ? model.trim() : DEFAULT_MODEL;
+  const useModel = sanitizeModel(model);
   try {
     const data = await geminiGenerate({
       model: useModel,
