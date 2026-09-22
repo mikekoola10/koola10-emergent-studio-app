@@ -17,7 +17,7 @@ const Sidebar: React.FC = () => {
   ]
 
   return (
-    <div className="w-64 bg-koola-purple border-r border-koola-cyan/20 flex flex-col">
+    <div className="hidden md:flex w-64 shrink-0 bg-koola-purple border-r border-koola-cyan/20 flex-col">
       {/* Header */}
       <div className="p-6 border-b border-koola-cyan/20">
         <h1 className="text-2xl font-bold text-koola-cyan drop-shadow-lg">

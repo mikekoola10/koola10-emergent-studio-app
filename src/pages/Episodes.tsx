@@ -65,7 +65,7 @@ const Episodes: React.FC = () => {
   }
 
   return (
-    <div className="flex flex-col h-screen bg-gradient-to-br from-koola-dark via-black to-koola-dark">
+    <div className="flex flex-col h-full bg-gradient-to-br from-koola-dark via-black to-koola-dark">
       {/* Header */}
       <div className="bg-koola-purple/30 border-b border-koola-cyan/20 px-6 py-4">
         <div className="flex items-center justify-between">

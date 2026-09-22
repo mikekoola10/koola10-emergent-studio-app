@@ -1,0 +1,1 @@
+{"dependencies":{"cors":"^2.8.5","express":"^4.19.2","pg":"^8.11.3"},"description":"Backend API for Koola10 Emergent Studio (Gemini-powered chat, lore, style + episode storage)","engines":{"node":">=18"},"main":"index.js","name":"koola10-studio-api","private":true,"scripts":{"start":"node index.js"},"version":"0.1.0"}
