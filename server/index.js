@@ -219,6 +219,174 @@ app.post('/ai/chat', async (req, res) => {
   }
 });
 
+// ---------------------------------------------------------------------------
+// Nova's memory vault ("the actual Jarvis" memory system)
+// ---------------------------------------------------------------------------
+// Durable facts about the producer, persisted in Neon Postgres (nova_memories)
+// or in-memory when DATABASE_URL is unset. Loaded into Nova's system prompt
+// on every /ai/beatlab request; new facts are extracted from each turn by a
+// lightweight Gemini call and stored only if genuinely new.
+const SEED_FACTS = [
+  { id: 'seed-setup-daw', category: 'setup', memory: 'Produces beats in FL Studio 25 — a personal music project, not a Spiral Academy business offering.' },
+  { id: 'seed-setup-flex', category: 'setup', memory: 'Uses the FLEX plugin a lot when making beats.' },
+  { id: 'seed-setup-stock-limits', category: 'setup', memory: 'Fruity Limiter and 3xOSC are unusable in their setup — give sidechain and sound-design methods that do not need them (e.g. Fruity Peak Controller for sidechaining).' },
+  { id: 'seed-pref-plain-english', category: 'preference', memory: 'Prefers plain-English, knob-by-knob plugin explanations with no assumed music training — describe what they will hear when turning each control.' },
+  { id: 'seed-goal-own-plugins', category: 'goal', memory: 'Rebuilding stock FL Studio plugins themselves in the mikekoola10/fl-studio-plugins repo, because stock features keep turning into paid ones — keep recommendations Image-Line-independent where possible.' },
+  { id: 'seed-goal-jarvis', category: 'goal', memory: 'Wants Nova to become a real Jarvis-style assistant with persistent memory that knows them across conversations.' },
+];
+
+const MEMORY_CATEGORIES = new Set(['setup', 'preference', 'feedback', 'goal', 'workflow', 'fact']);
+const MAX_MEMORIES = 60;
+
+// In-memory fallback (used when DATABASE_URL is unset). Seeded at boot.
+const memoryStore = SEED_FACTS.map((f) => ({
+  id: f.id,
+  memory: f.memory,
+  category: f.category,
+  created_at: new Date().toISOString(),
+  updated_at: new Date().toISOString(),
+}));
+
+function normalizeFact(s) {
+  return String(s || '').toLowerCase().replace(/[^a-z0-9\s]/g, ' ').replace(/\s+/g, ' ').trim();
+}
+
+// Common words that dilute similarity scores.
+const FACT_STOPWORDS = new Set([
+  'a', 'an', 'the', 'in', 'on', 'for', 'to', 'of', 'and', 'or', 'as',
+  'is', 'are', 'was', 'were', 'be', 'been', 'their', 'they', 'them',
+  'with', 'at', 'by', 'not', 'it', 'its', 'this', 'that',
+]);
+
+function factWords(s) {
+  return normalizeFact(s)
+    .split(' ')
+    .filter((w) => w && !FACT_STOPWORDS.has(w))
+    // tiny plural stem: "produces" -> "produce" (but keep "bass", "808s" -> "808")
+    .map((w) => (w.length > 3 && w.endsWith('s') && !w.endsWith('ss') ? w.slice(0, -1) : w));
+}
+
+// True when two fact strings say the same thing (exact match, containment,
+// or high word overlap after stopword removal). Used to avoid storing
+// duplicates while never merging genuinely distinct facts.
+function factsSimilar(a, b) {
+  const na = normalizeFact(a);
+  const nb = normalizeFact(b);
+  if (!na || !nb) return false;
+  if (na === nb || na.includes(nb) || nb.includes(na)) return true;
+  const wa = new Set(factWords(a));
+  const wb = new Set(factWords(b));
+  if (wa.size === 0 || wb.size === 0) return false;
+  let inter = 0;
+  for (const w of wa) if (wb.has(w)) inter++;
+  const union = new Set([...wa, ...wb]).size;
+  return union > 0 && inter / union >= 0.55;
+}
+
+async function listMemories(limit = 40) {
+  const n = Math.max(1, Math.min(100, parseInt(limit, 10) || 40));
+  if (pgPool) {
+    const { rows } = await pgPool.query(
+      'SELECT id, memory, category, created_at, updated_at FROM nova_memories ORDER BY updated_at DESC LIMIT $1',
+      [n]
+    );
+    return rows;
+  }
+  return memoryStore
+    .slice()
+    .sort((a, b) => new Date(b.updated_at) - new Date(a.updated_at))
+    .slice(0, n);
+}
+
+// Stores a fact only if genuinely new. If a similar fact already exists,
+// refreshes its updated_at instead of duplicating.
+// Returns 'inserted' | 'refreshed' | 'skipped'.
+async function saveMemory({ category, memory }) {
+  const text = String(memory || '').trim().slice(0, 300);
+  if (!text) return 'skipped';
+  const cat = MEMORY_CATEGORIES.has(category) ? category : 'fact';
+  if (pgPool) {
+    const { rows } = await pgPool.query('SELECT id, memory FROM nova_memories');
+    const dup = rows.find((r) => factsSimilar(r.memory, text));
+    if (dup) {
+      await pgPool.query('UPDATE nova_memories SET updated_at = NOW() WHERE id = $1', [dup.id]);
+      return 'refreshed';
+    }
+    await pgPool.query(
+      'INSERT INTO nova_memories (id, memory, category) VALUES ($1, $2, $3) ON CONFLICT (id) DO NOTHING',
+      [rid(), text, cat]
+    );
+    await pgPool.query(
+      'DELETE FROM nova_memories WHERE id IN (SELECT id FROM nova_memories ORDER BY updated_at DESC OFFSET $1)',
+      [MAX_MEMORIES]
+    );
+    return 'inserted';
+  }
+  const dup = memoryStore.find((m) => factsSimilar(m.memory, text));
+  if (dup) {
+    dup.updated_at = new Date().toISOString();
+    return 'refreshed';
+  }
+  memoryStore.push({
+    id: rid(),
+    memory: text,
+    category: cat,
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  });
+  memoryStore.sort((a, b) => new Date(b.updated_at) - new Date(a.updated_at));
+  if (memoryStore.length > MAX_MEMORIES) memoryStore.length = MAX_MEMORIES;
+  return 'inserted';
+}
+
+function formatMemoriesForPrompt(memories) {
+  if (!memories || memories.length === 0) return '';
+  const lines = memories.map((m) => `- [${m.category || 'fact'}] ${m.memory}`);
+  return (
+    '\n\nWhat you remember about this producer (your long-term memory — weave it in naturally when relevant, never recite it as a list unprompted):\n' +
+    lines.join('\n')
+  );
+}
+
+const MEMORY_EXTRACT_SYSTEM = `[MEMORY-EXTRACT] You extract durable facts for a producer's long-term memory vault.
+Rules:
+- Return ONLY a JSON array, no other text, no code fences.
+- Each item: {"category": "<one of: setup, preference, feedback, goal, workflow, fact>", "memory": "<one concise sentence>"}.
+- DURABLE = their setup/gear, lasting preferences, mix feedback history, goals, workflow habits. NOT durable = greetings, one-off chatter, trivia, or anything already obvious from the conversation topic.
+- Maximum 3 items. If nothing durable was said, return [].`;
+
+// Pulls durable facts from one conversation turn and stores genuinely new ones.
+// Fire-and-forget: never blocks or breaks the chat response.
+async function extractAndStoreMemories(userText, novaText) {
+  const convo =
+    `Producer: ${String(userText || '').slice(0, 1500)}\n` +
+    `Nova: ${String(novaText || '').slice(0, 1500)}`;
+  const data = await geminiGenerate({
+    model: DEFAULT_MODEL,
+    systemInstruction: MEMORY_EXTRACT_SYSTEM,
+    contents: [{ role: 'user', parts: [{ text: convo }] }],
+  });
+  const raw = extractText(data).replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/, '').trim();
+  if (!raw) return [];
+  let facts;
+  try {
+    facts = JSON.parse(raw);
+  } catch {
+    return [];
+  }
+  if (!Array.isArray(facts)) facts = facts && Array.isArray(facts.facts) ? facts.facts : [];
+  const results = [];
+  for (const f of facts.slice(0, 3)) {
+    if (!f || typeof f.memory !== 'string') continue;
+    try {
+      results.push(await saveMemory({ category: f.category, memory: f.memory }));
+    } catch (err) {
+      console.error('[studio-api] saveMemory:', err.message);
+    }
+  }
+  return results;
+}
+
 // --- Beat Lab: Nova as a mixing & mastering coach ---
 // The user produces beats in FL Studio. This endpoint answers mixing/mastering
 // questions with concrete, FL-Studio-specific guidance (stock plugins, settings,
@@ -240,15 +408,29 @@ app.post('/ai/beatlab', async (req, res) => {
   if (!Array.isArray(messages) || messages.length === 0) {
     return res.status(400).json({ error: 'messages must be a non-empty array.' });
   }
+  // Load Nova's long-term memory (graceful if the table doesn't exist yet).
+  let memoryBlock = '';
+  try {
+    memoryBlock = formatMemoriesForPrompt(await listMemories(40));
+  } catch (err) {
+    console.error('[studio-api] load memories:', err.message);
+  }
   try {
     const data = await geminiGenerate({
       model: DEFAULT_MODEL,
-      systemInstruction: BEATLAB_SYSTEM,
+      systemInstruction: BEATLAB_SYSTEM + memoryBlock,
       contents: geminiContentsFromMessages(messages),
     });
     const text = extractText(data);
     if (!text) return res.status(502).json({ error: 'AI returned an empty response.' });
     res.json({ response: text, model: DEFAULT_MODEL });
+    // Learn from this turn in the background — never blocks the reply.
+    const lastUser = [...messages]
+      .reverse()
+      .find((m) => m && m.role !== 'assistant' && typeof m.content === 'string');
+    extractAndStoreMemories(lastUser ? lastUser.content : '', text).catch((err) =>
+      console.error('[studio-api] memory extract:', err.message)
+    );
   } catch (err) {
     res.status(err.status || 500).json({ error: err.message || 'Beat Lab failed.' });
   }
@@ -573,3 +755,14 @@ app.use((err, _req, res, _next) => {
 app.listen(PORT, () => {
   console.log(`[studio-api] listening on :${PORT}`);
 });
+
+// Test hooks: expose memory internals so a local harness can verify the vault
+// without a database. The server still starts normally on require().
+module.exports = {
+  app,
+  listMemories,
+  saveMemory,
+  extractAndStoreMemories,
+  formatMemoriesForPrompt,
+  SEED_FACTS,
+};
