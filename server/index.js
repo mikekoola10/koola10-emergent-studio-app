@@ -329,6 +329,125 @@ app.post('/ai/beatlab-listen', (req, res) => {
   });
 });
 
+// --- Beat Lab: Sound Designer — text prompt → synth parameters + 3xOSC dial-in ---
+// Deterministic take on the fl-studio-plugins ai-engine idea
+// (prompt_parser + style_map + parameter_schema). No AI call: instant, offline,
+// and the same description always produces the same starting point.
+const SOUND_BASE_PARAMS = {
+  osc_type: 'saw', detune: 0.12, cutoff: 800, resonance: 0.3,
+  attack: 0.01, decay: 0.2, sustain: 0.7, release: 0.5,
+  reverb: 0.4, distortion: 0.6,
+};
+
+// keyword -> { param: defaultValue }. Later words override earlier ones.
+const SOUND_STYLE_MAP = {
+  dark:   { cutoff: 300, distortion: 0.7 },
+  ambient:{ reverb: 0.75, attack: 0.3, release: 0.9 },
+  pad:    { sustain: 0.8, detune: 0.1 },
+  bass:   { osc_type: 'sine', cutoff: 120, decay: 0.1 },
+  rage:   { osc_type: 'saw', distortion: 0.85, detune: 0.45 },
+  lead:   { osc_type: 'saw', cutoff: 1500, resonance: 0.55 },
+  bright: { cutoff: 2200, resonance: 0.65 },
+  pluck:  { attack: 0.02, decay: 0.2, sustain: 0.05, release: 0.3 },
+  '808':  { osc_type: 'sine', cutoff: 90, decay: 0.45, sustain: 0.65, distortion: 0.2 },
+  sub:    { osc_type: 'sine', cutoff: 70, attack: 0.01, release: 0.2 },
+  deep:   { cutoff: 150 },
+  warm:   { cutoff: 500, resonance: 0.2, distortion: 0.15 },
+  smooth: { attack: 0.08, resonance: 0.2 },
+  hard:   { distortion: 0.75, attack: 0.01 },
+  aggressive: { distortion: 0.85, cutoff: 1500 },
+  soft:   { attack: 0.12, cutoff: 700, distortion: 0.1 },
+  mellow: { attack: 0.12, cutoff: 700, distortion: 0.1 },
+  bell:   { osc_type: 'sine', attack: 0.01, decay: 1.0, sustain: 0.2, detune: 0.05 },
+  keys:   { attack: 0.01, decay: 0.4, sustain: 0.5, cutoff: 1200 },
+  strings:{ attack: 0.3, sustain: 0.9, release: 0.7, detune: 0.15, reverb: 0.65 },
+  arp:    { attack: 0.01, decay: 0.15, sustain: 0.05, cutoff: 2000 },
+  stab:   { attack: 0.008, decay: 0.25, sustain: 0.2, cutoff: 1000 },
+  brass:  { osc_type: 'saw', attack: 0.08, sustain: 0.8, cutoff: 1200 },
+  choir:  { attack: 0.2, sustain: 0.8, reverb: 0.6, detune: 0.12 },
+  vocal:  { attack: 0.2, sustain: 0.8, reverb: 0.6, detune: 0.12 },
+  airy:   { cutoff: 4000, reverb: 0.75, attack: 0.2 },
+  wide:   { detune: 0.25, reverb: 0.6 },
+  gritty: { distortion: 0.65, cutoff: 900 },
+  clean:  { distortion: 0.05, resonance: 0.2 },
+  punchy: { attack: 0.01, decay: 0.2, distortion: 0.3 },
+  boomy:  { cutoff: 110, resonance: 0.45, decay: 0.45 },
+  metallic:{ osc_type: 'square', resonance: 0.75, cutoff: 2500 },
+  glassy: { osc_type: 'triangle', cutoff: 5000, reverb: 0.65 },
+  lofi:   { cutoff: 800, distortion: 0.3, attack: 0.02 },
+  drill:  { osc_type: 'sine', cutoff: 100, distortion: 0.35, decay: 0.45 },
+};
+
+function designSound(description) {
+  const params = { ...SOUND_BASE_PARAMS };
+  const words = String(description).toLowerCase().replace(/[^a-z0-9\s]/g, ' ').split(/\s+/).filter(Boolean);
+  const matched = [];
+  for (const w of words) {
+    const traits = SOUND_STYLE_MAP[w];
+    if (!traits || matched.includes(w)) continue;
+    matched.push(w);
+    for (const [param, value] of Object.entries(traits)) params[param] = value;
+  }
+  return { params, matched };
+}
+
+function dialInSteps(p) {
+  const steps = [];
+  const shape = ['saw', 'square', 'triangle', 'sine'].includes(p.osc_type) ? p.osc_type : 'saw';
+  steps.push({
+    title: 'Load 3xOSC',
+    detail: 'Add a 3xOSC to the channel rack — it is stock in every FL Studio edition.',
+  });
+  steps.push({
+    title: 'Oscillator shape',
+    detail: `Set the oscillator waveform to ${shape}. Start with only Osc 1 turned up; layer Osc 2 later if you want it thicker.`,
+  });
+  const cents = Math.round(p.detune * 50);
+  steps.push({
+    title: 'Detune for width',
+    detail: `Turn up Osc 2 and set its fine-tune to about +${cents} cents (leave Osc 1 at 0). More detune = wider; past ~25 cents it starts sounding out of tune — trust your ears.`,
+  });
+  steps.push({
+    title: 'Filter',
+    detail: `Filter cutoff ≈ ${Math.round(p.cutoff)} Hz, resonance ≈ ${Math.round(p.resonance * 100)}%. Low cutoff = darker and rounder; open it up for brightness.`,
+  });
+  steps.push({
+    title: 'Volume envelope',
+    detail: `Attack ${p.attack}s, decay ${p.decay}s, sustain ${Math.round(p.sustain * 100)}%, release ${p.release}s. Short attack + short decay = plucky; long attack + high sustain = pad.`,
+  });
+  if (p.distortion >= 0.15) {
+    steps.push({
+      title: 'Grit',
+      detail: `On the mixer slot, add Fruity Blood Overdrive with drive ≈ ${Math.round(p.distortion * 100)}%. This is where the aggression lives — back it off if it eats the low end.`,
+    });
+  }
+  if (p.reverb >= 0.15) {
+    steps.push({
+      title: 'Space',
+      detail: `On the mixer slot, add Fruity Reeverb 2 with the wet level ≈ ${Math.round(p.reverb * 100)}%. Keep bass sounds drier — reverb on sub frequencies turns to mud.`,
+    });
+  }
+  return steps;
+}
+
+app.post('/ai/beatlab-design', (req, res) => {
+  const { description } = req.body || {};
+  if (typeof description !== 'string' || !description.trim()) {
+    return res.status(400).json({ error: 'Describe the sound first (e.g. "dark 808" or "airy bell arp").' });
+  }
+  const clean = description.trim().slice(0, 200);
+  const { params, matched } = designSound(clean);
+  res.json({
+    description: clean,
+    matched,
+    parameters: params,
+    dial_in: dialInSteps(params),
+    note: matched.length === 0
+      ? 'No sound keywords matched — you got the neutral starting point. Try words like 808, pluck, pad, bell, strings, dark, bright, gritty, lofi.'
+      : 'Same description always gives the same starting point — tweak by ear from here, or describe tweaks to Nova in the Coach tab.',
+  });
+});
+
 // --- Episodes ---
 app.get('/studio/episodes', async (_req, res) => {
   try {

@@ -50,6 +50,14 @@ export interface ChatResponse {
   model?: string;
 }
 
+export interface SoundDesignResponse {
+  description: string;
+  matched: string[];
+  parameters: Record<string, number | string>;
+  dial_in: { title: string; detail: string }[];
+  note: string;
+}
+
 export interface Episode {
   id: string;
   title: string;
@@ -181,6 +189,13 @@ export const apiClient = {
       throw new Error(msg);
     }
     return (await res.json()) as ChatResponse;
+  },
+  // Beat Lab — Sound Designer: text description → synth parameters + 3xOSC dial-in
+  beatlabDesign: async (description: string): Promise<SoundDesignResponse> => {
+    const response = await api.post<SoundDesignResponse>('/ai/beatlab-design', {
+      description,
+    });
+    return response.data;
   },
 };
 
