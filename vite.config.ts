@@ -11,7 +11,7 @@ export default defineConfig({
       manifest: false,
       registerType: 'autoUpdate',
       workbox: {
-        globPatterns: ['**/*.{js,css,html,ico,png,svg,webmanifest}'],
+        globPatterns: ['**/*.{js,css,html,ico,png,jpg,jpeg,svg,webmanifest}'],
         // SPA fallback so client-side routes work offline / on refresh
         navigateFallback: 'index.html',
       },

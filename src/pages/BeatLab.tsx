@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react'
-import { Send, AudioWaveform, Paperclip, X, Wand2, MessageCircle } from 'lucide-react'
+import { Send, AudioWaveform, Paperclip, X, Wand2, MessageCircle, Dices } from 'lucide-react'
 import { apiClient, ChatMessage, SoundDesignResponse, friendlyErrorMessage } from '../lib/api'
 import LoadingState from '../components/LoadingState'
 import ErrorState from '../components/ErrorState'
@@ -42,6 +42,18 @@ function formatParamValue(key: string, value: number | string): string {
   return value.toFixed(2)
 }
 
+// Nova's faces — one is picked at random from the user's photo set on each visit.
+const NOVA_AVATARS = Array.from({ length: 13 }, (_, i) => `/nova-avatars/nova-${i + 1}.jpg`)
+
+function randomAvatarIndex(except?: number): number {
+  if (NOVA_AVATARS.length <= 1) return 0
+  let idx = Math.floor(Math.random() * NOVA_AVATARS.length)
+  while (idx === except) {
+    idx = Math.floor(Math.random() * NOVA_AVATARS.length)
+  }
+  return idx
+}
+
 const BeatLab: React.FC = () => {
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [inputValue, setInputValue] = useState('')
@@ -56,6 +68,11 @@ const BeatLab: React.FC = () => {
   const [designError, setDesignError] = useState<string | null>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const [avatarIdx, setAvatarIdx] = useState<number>(() => randomAvatarIndex())
+
+  const shuffleAvatar = () => {
+    setAvatarIdx((prev) => randomAvatarIndex(prev))
+  }
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -143,7 +160,21 @@ const BeatLab: React.FC = () => {
       {/* Header */}
       <div className="bg-koola-purple/30 border-b border-koola-cyan/20 px-6 py-4">
         <div className="flex items-center gap-3">
-          <AudioWaveform size={28} className="text-koola-cyan" />
+          <div className="relative flex-shrink-0">
+            <img
+              src={NOVA_AVATARS[avatarIdx]}
+              alt="Nova"
+              className="w-14 h-14 rounded-full object-cover border-2 border-koola-cyan/60"
+            />
+            <button
+              onClick={shuffleAvatar}
+              title="New face"
+              aria-label="Give Nova a new face"
+              className="absolute -bottom-1 -right-1 p-1.5 bg-koola-dark border border-koola-cyan/50 text-koola-cyan rounded-full hover:bg-koola-cyan/20 transition-colors"
+            >
+              <Dices size={14} />
+            </button>
+          </div>
           <div>
             <h1 className="text-3xl font-bold text-koola-cyan">Beat Lab</h1>
             <p className="text-gray-400 text-sm mt-1">
@@ -206,8 +237,15 @@ const BeatLab: React.FC = () => {
         {messages.map((msg, idx) => (
           <div
             key={idx}
-            className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
+            className={`flex items-start gap-2 ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
           >
+            {msg.role === 'assistant' && (
+              <img
+                src={NOVA_AVATARS[avatarIdx]}
+                alt="Nova"
+                className="w-8 h-8 rounded-full object-cover border border-koola-cyan/40 flex-shrink-0 mt-1"
+              />
+            )}
             <div
               className={`max-w-2xl px-4 py-3 rounded-lg ${
                 msg.role === 'user'
