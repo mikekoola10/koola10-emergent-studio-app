@@ -94,6 +94,7 @@ const NovaAmbient: React.FC = () => {
   const convoUntilRef = useRef(0) // timestamp when the conversation window closes
   const speakingRef = useRef(false) // true while TTS is playing — ignore her own voice
   const [speaking, setSpeaking] = useState(false) // UI state: she is talking — bounce + waveform ring
+  const speechTokenRef = useRef(0) // bumps every speak() so a stale queue can't keep talking
   const CONVO_WINDOW_MS = 45000
 
   const setLook = (id: string) => {
@@ -143,14 +144,44 @@ const NovaAmbient: React.FC = () => {
   const speak = (text: string) => {
     try {
       if (!('speechSynthesis' in window)) return
+      const token = ++speechTokenRef.current // invalidate any queue still talking
       window.speechSynthesis.cancel()
-      const u = new SpeechSynthesisUtterance(text)
-      u.rate = 1
+      // Strip markdown so she doesn't literally say "star star"
+      const clean = text.replace(/\*\*/g, '').replace(/[*_#`>]/g, '').replace(/\s+/g, ' ').trim()
+      if (!clean) return
+      // Android Chrome stutters and cuts off long single utterances — feed her
+      // sentence-by-sentence instead, merging short ones up to ~220 chars
+      const sentences = clean.match(/[^.!?]+[.!?]+|[^.!?]+$/g) || [clean]
+      const chunks: string[] = []
+      for (const s of sentences) {
+        const t = s.trim()
+        if (!t) continue
+        const last = chunks[chunks.length - 1]
+        if (last && last.length + t.length + 1 <= 220) chunks[chunks.length - 1] = last + ' ' + t
+        else chunks.push(t)
+      }
       speakingRef.current = true // don't transcribe her own voice as a new query
       setSpeaking(true)
-      u.onend = () => { speakingRef.current = false; setSpeaking(false) }
-      u.onerror = () => { speakingRef.current = false; setSpeaking(false) }
-      window.speechSynthesis.speak(u)
+      let i = 0
+      const next = () => {
+        if (token !== speechTokenRef.current) return // superseded by a newer speak()
+        if (i >= chunks.length) {
+          speakingRef.current = false
+          setSpeaking(false)
+          return
+        }
+        const u = new SpeechSynthesisUtterance(chunks[i++])
+        u.rate = 1
+        u.onend = next
+        u.onerror = () => {
+          if (token === speechTokenRef.current) {
+            speakingRef.current = false
+            setSpeaking(false)
+          }
+        }
+        window.speechSynthesis.speak(u)
+      }
+      next()
     } catch {
       speakingRef.current = false
       setSpeaking(false)
@@ -362,6 +393,7 @@ const NovaAmbient: React.FC = () => {
       }
       speakingRef.current = false
       setSpeaking(false)
+      speechTokenRef.current++ // kill any queued sentences
     } else {
       // Prime a voice so the first spoken reply isn't delayed (also unlocks
       // audio on browsers that need a user gesture)
