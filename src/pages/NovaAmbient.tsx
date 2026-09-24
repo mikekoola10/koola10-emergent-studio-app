@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { ChevronLeft, Mic, MicOff, Send, Shuffle } from 'lucide-react'
 import { apiClient } from '../lib/api'
+import NovaWallpaper from '../components/NovaWallpaper'
 
 function greetingForHour(h: number): string {
   if (h >= 5 && h < 12) return 'Good morning'
@@ -23,7 +24,7 @@ const LOOKS: NovaLook[] = [
   { id: 'streetwear', name: 'Streetwear', img: '/nova-ambient/nova-fullbody.jpg', video: '/nova-ambient/nova-idle.mp4' },
   { id: 'fairy', name: 'Fairy Goddess', img: '/nova-ambient/look-fairy.jpg', video: '/nova-ambient/look-fairy.mp4' },
   { id: 'goddess', name: 'Golden Goddess', img: '/nova-ambient/look-goddess.jpg', video: '/nova-ambient/look-goddess.mp4' },
-  { id: 'neon', name: 'Neon Cyber', img: '/nova-ambient/look-neon.jpg', video: '/nova-ambient/look-neon.mp4' },
+  { id: 'neon', name: 'Neon Siren', img: '/nova-ambient/look-neon.jpg', video: '/nova-ambient/look-neon.mp4' },
 ]
 
 // Keyword → look mapping for voice/text commands
@@ -80,7 +81,7 @@ const NovaAmbient: React.FC = () => {
   const [copied, setCopied] = useState(false) // copy-feedback for the bubble
   const [micNote, setMicNote] = useState<string | null>(null) // transient status
   const [chatText, setChatText] = useState('') // typed message to Nova
-  const [lookId, setLookId] = useState('streetwear') // Nova's current shapeshifted look
+  const [lookId, setLookId] = useState('goddess') // Nova's current shapeshifted look
   const look = LOOKS.find((l) => l.id === lookId) ?? LOOKS[0]
 
   const recRef = useRef<RecognitionLike | null>(null)
@@ -88,7 +89,7 @@ const NovaAmbient: React.FC = () => {
   const captionTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const failCountRef = useRef(0) // consecutive instant recognition deaths (restart backoff)
   const lastStartRef = useRef(0) // timestamp of the last rec.start()
-  const lookIdRef = useRef('streetwear') // fresh look id for recognition callbacks
+  const lookIdRef = useRef('goddess') // fresh look id for recognition callbacks
 
   const setLook = (id: string) => {
     lookIdRef.current = id
@@ -400,6 +401,9 @@ const NovaAmbient: React.FC = () => {
         idle ? 'cursor-none' : 'cursor-pointer'
       }`}
     >
+      {/* Live wallpaper: animated aurora + drifting stardust, tinted per her look */}
+      <NovaWallpaper lookId={lookId} />
+
       {/* Discreet way back to the studio — does not trigger the tap flourish */}
       <Link
         to="/beatlab"

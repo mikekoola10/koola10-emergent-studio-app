@@ -154,3 +154,133 @@ body {
 .animate-nova-tap-pulse {
   animation: nova-tap-pulse 0.9s ease-in-out;
 }
+
+/* ---- Nova live wallpaper: animated ambient background ---- */
+/* Registered custom properties so per-look hue shifts crossfade smoothly */
+@property --wall-hue-a {
+  syntax: '<number>';
+  inherits: true;
+  initial-value: 45;
+}
+@property --wall-hue-b {
+  syntax: '<number>';
+  inherits: true;
+  initial-value: 30;
+}
+
+.nova-wallpaper {
+  transition: --wall-hue-a 2s ease-in-out, --wall-hue-b 2s ease-in-out;
+}
+
+.aurora-blob {
+  position: absolute;
+  border-radius: 9999px;
+  pointer-events: none;
+  will-change: transform;
+}
+
+.aurora-a {
+  width: 75vmax;
+  height: 75vmax;
+  left: -22vmax;
+  top: -24vmax;
+  background: radial-gradient(
+    closest-side,
+    hsla(var(--wall-hue-a), 95%, 58%, 0.32),
+    hsla(var(--wall-hue-a), 95%, 50%, 0.10) 55%,
+    transparent 72%
+  );
+  filter: blur(60px);
+  animation: aurora-drift-a 63s ease-in-out infinite;
+}
+
+.aurora-b {
+  width: 68vmax;
+  height: 68vmax;
+  right: -20vmax;
+  bottom: -22vmax;
+  background: radial-gradient(
+    closest-side,
+    hsla(var(--wall-hue-b), 95%, 55%, 0.28),
+    hsla(var(--wall-hue-b), 95%, 50%, 0.08) 55%,
+    transparent 72%
+  );
+  filter: blur(70px);
+  animation: aurora-drift-b 47s ease-in-out infinite;
+}
+
+.aurora-c {
+  width: 55vmax;
+  height: 55vmax;
+  left: 30%;
+  top: 8%;
+  background: radial-gradient(
+    closest-side,
+    hsla(var(--wall-hue-a), 90%, 62%, 0.16),
+    transparent 70%
+  );
+  filter: blur(80px);
+  animation: aurora-drift-c 55s ease-in-out infinite;
+}
+
+@keyframes aurora-drift-a {
+  0%, 100% {
+    transform: translate(0, 0) scale(1);
+  }
+  33% {
+    transform: translate(6vmax, 4vmax) scale(1.12);
+  }
+  66% {
+    transform: translate(-4vmax, 7vmax) scale(0.94);
+  }
+}
+
+@keyframes aurora-drift-b {
+  0%, 100% {
+    transform: translate(0, 0) scale(1.05);
+  }
+  50% {
+    transform: translate(-7vmax, -5vmax) scale(0.92);
+  }
+}
+
+@keyframes aurora-drift-c {
+  0%, 100% {
+    transform: translate(0, 0) scale(1);
+  }
+  50% {
+    transform: translate(-5vmax, 6vmax) scale(1.15);
+  }
+}
+
+/* Subtle parallax: drifts opposite Nova's 60s pace (she goes -15vw → +15vw) */
+@keyframes wallpaper-parallax {
+  0%, 100% {
+    transform: translateX(10px);
+  }
+  50% {
+    transform: translateX(-10px);
+  }
+}
+
+.animate-wallpaper-parallax {
+  animation: wallpaper-parallax 60s ease-in-out infinite;
+}
+
+.wallpaper-vignette {
+  background: radial-gradient(
+    ellipse at center,
+    transparent 38%,
+    rgba(0, 0, 0, 0.35) 72%,
+    rgba(0, 0, 0, 0.62) 100%
+  );
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .aurora-a,
+  .aurora-b,
+  .aurora-c,
+  .animate-wallpaper-parallax {
+    animation: none;
+  }
+}
