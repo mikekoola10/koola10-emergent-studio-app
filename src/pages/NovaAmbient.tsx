@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { ChevronLeft, Mic, MicOff } from 'lucide-react'
+import { ChevronLeft, Mic, MicOff, Send } from 'lucide-react'
 import { apiClient } from '../lib/api'
 
 function greetingForHour(h: number): string {
@@ -51,10 +51,13 @@ const NovaAmbient: React.FC = () => {
   const [bubble, setBubble] = useState<string | null>(null) // Nova's spoken reply
   const [copied, setCopied] = useState(false) // copy-feedback for the bubble
   const [micNote, setMicNote] = useState<string | null>(null) // transient status
+  const [chatText, setChatText] = useState('') // typed message to Nova
 
   const recRef = useRef<RecognitionLike | null>(null)
   const wantMicRef = useRef(false) // mirrors micOn inside recognition callbacks
   const captionTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const failCountRef = useRef(0) // consecutive instant recognition deaths (restart backoff)
+  const lastStartRef = useRef(0) // timestamp of the last rec.start()
 
   // Page title
   useEffect(() => {
@@ -147,6 +150,16 @@ const NovaAmbient: React.FC = () => {
     captionTimer.current = setTimeout(() => setCaption(''), 4000)
   }
 
+  // Typed chat, merged with the avatar view — same askNova path as voice
+  const sendChat = (e: React.FormEvent) => {
+    e.preventDefault()
+    const text = chatText.trim()
+    if (!text) return
+    setChatText('')
+    ;(document.activeElement as HTMLElement | null)?.blur?.()
+    askNova(text)
+  }
+
   // Recognition lifecycle: (re)create when the user enables listening
   useEffect(() => {
     wantMicRef.current = micOn
@@ -176,8 +189,10 @@ const NovaAmbient: React.FC = () => {
       for (let i = e.resultIndex; i < e.results.length; i++) {
         const res = e.results[i]
         const transcript = res[0]?.transcript || ''
-        if (res.isFinal) handleFinalTranscript(transcript)
-        else interim += transcript
+        if (res.isFinal) {
+          failCountRef.current = 0 // real speech — healthy session, reset backoff
+          handleFinalTranscript(transcript)
+        } else interim += transcript
       }
       if (interim.trim()) {
         setCaption(interim)
@@ -192,7 +207,10 @@ const NovaAmbient: React.FC = () => {
         setMicOn(false)
         return
       }
-      if (code === 'aborted') return // our own stop(); onend handles the rest
+      // 'aborted' = our own stop(); 'no-speech' = quiet room (normal). Both are
+      // silent — onend restarts with backoff below. Every restart beeps on
+      // Android, so we never hot-loop here.
+      if (code === 'aborted' || code === 'no-speech') return
       setMicNote('Mic hiccup — retrying…')
       // onend fires next and restarts while listening is enabled
     }
@@ -200,21 +218,29 @@ const NovaAmbient: React.FC = () => {
     rec.onend = () => {
       setMicLive(false)
       if (wantMicRef.current) {
-        // Chrome stops continuous recognition on its own — restart it
+        // Chrome stops continuous recognition on its own — restart it, but back
+        // off when sessions die instantly (quiet-room no-speech loops), because
+        // every restart beeps on Android.
+        const sessionLen = Date.now() - lastStartRef.current
+        if (sessionLen < 4000) failCountRef.current += 1
+        else failCountRef.current = 0
+        const delay = Math.min(800 + failCountRef.current * 2500, 20000)
         window.setTimeout(() => {
           if (!wantMicRef.current || !recRef.current) return
           try {
+            lastStartRef.current = Date.now()
             recRef.current.start()
             setMicLive(true)
           } catch {
             /* already started */
           }
-        }, 600)
+        }, delay)
       }
     }
 
     recRef.current = rec
     try {
+      lastStartRef.current = Date.now()
       rec.start()
       setMicLive(true)
       setMicNote(null)
@@ -421,6 +447,28 @@ const NovaAmbient: React.FC = () => {
           Nova &middot; always here
         </div>
       </div>
+
+      {/* Type-to-Nova, merged with the avatar view */}
+      <form
+        onSubmit={sendChat}
+        onClick={(e) => e.stopPropagation()}
+        className="z-20 mt-[2vmin] flex w-[min(92vw,560px)] flex-shrink-0 items-center gap-2 px-2"
+      >
+        <input
+          value={chatText}
+          onChange={(e) => setChatText(e.target.value)}
+          placeholder="Type to Nova…"
+          aria-label="Type a message to Nova"
+          className="h-11 flex-1 select-text rounded-full border border-koola-cyan/25 bg-black/50 px-4 text-sm text-gray-100 placeholder:text-gray-500 outline-none focus:border-koola-cyan/60"
+        />
+        <button
+          type="submit"
+          aria-label="Send message"
+          className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-full border border-koola-cyan/40 bg-koola-cyan/10 text-koola-cyan transition-colors hover:bg-koola-cyan/20"
+        >
+          <Send size={16} />
+        </button>
+      </form>
     </div>
   )
 }
