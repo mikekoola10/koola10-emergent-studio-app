@@ -497,7 +497,7 @@ const NovaAmbient: React.FC = () => {
 
       {/* Transient mic status notes */}
       {micNote && (
-        <div className="absolute z-20 left-1/2 -translate-x-1/2 bottom-[4vmin] max-w-[85vw] text-center text-amber-300/80" style={{ fontSize: '2vmin' }}>
+        <div className="absolute z-20 left-1/2 -translate-x-1/2 bottom-[calc(env(safe-area-inset-bottom)+76px)] max-w-[85vw] text-center text-amber-300/80" style={{ fontSize: '2vmin' }}>
           {micNote}
         </div>
       )}
@@ -522,7 +522,7 @@ const NovaAmbient: React.FC = () => {
       <form
         onSubmit={sendChat}
         onClick={(e) => e.stopPropagation()}
-        className="z-20 mt-[2vmin] flex w-[min(92vw,560px)] flex-shrink-0 items-center gap-2 px-2"
+        className="z-20 mt-auto mb-[max(2vmin,env(safe-area-inset-bottom))] flex w-[min(92vw,560px)] flex-shrink-0 items-center gap-2 px-2"
       >
         <input
           value={chatText}
