@@ -90,6 +90,10 @@ const NovaAmbient: React.FC = () => {
   const failCountRef = useRef(0) // consecutive instant recognition deaths (restart backoff)
   const lastStartRef = useRef(0) // timestamp of the last rec.start()
   const lookIdRef = useRef('goddess') // fresh look id for recognition callbacks
+  const [convoOpen, setConvoOpen] = useState(false) // conversation window: follow-ups need no wake word
+  const convoUntilRef = useRef(0) // timestamp when the conversation window closes
+  const speakingRef = useRef(false) // true while TTS is playing — ignore her own voice
+  const CONVO_WINDOW_MS = 45000
 
   const setLook = (id: string) => {
     lookIdRef.current = id
@@ -117,9 +121,15 @@ const NovaAmbient: React.FC = () => {
     }
   }, [])
 
-  // Clock tick
+  // Clock tick + conversation-window expiry
   useEffect(() => {
-    const t = setInterval(() => setNow(new Date()), 5000)
+    const t = setInterval(() => {
+      setNow(new Date())
+      if (convoUntilRef.current && Date.now() > convoUntilRef.current) {
+        convoUntilRef.current = 0
+        setConvoOpen(false)
+      }
+    }, 5000)
     return () => clearInterval(t)
   }, [])
 
@@ -135,8 +145,12 @@ const NovaAmbient: React.FC = () => {
       window.speechSynthesis.cancel()
       const u = new SpeechSynthesisUtterance(text)
       u.rate = 1
+      speakingRef.current = true // don't transcribe her own voice as a new query
+      u.onend = () => { speakingRef.current = false }
+      u.onerror = () => { speakingRef.current = false }
       window.speechSynthesis.speak(u)
     } catch {
+      speakingRef.current = false
       // No voice available — the text bubble still shows
     }
   }
@@ -166,6 +180,9 @@ const NovaAmbient: React.FC = () => {
   }
 
   const askNova = async (query: string) => {
+    // Every exchange (typed or spoken) opens/extends the conversation window
+    convoUntilRef.current = Date.now() + CONVO_WINDOW_MS
+    setConvoOpen(true)
     setBubble('…')
     setCopied(false)
     try {
@@ -179,14 +196,25 @@ const NovaAmbient: React.FC = () => {
 
   const handleFinalTranscript = (transcript: string) => {
     setCaption('')
-    if (!/nova/i.test(transcript)) return
-    const query = transcript
-      .replace(/nova/gi, '')
-      .replace(/\s+/g, ' ')
-      .trim()
-      .replace(/[,.!?]+$/, '')
+    if (speakingRef.current) return // that's her own voice — ignore it
+    const hasWake = /nova/i.test(transcript)
+    const inConvo = Date.now() < convoUntilRef.current
+    if (!hasWake && !inConvo) return // not talking to her — stay quiet
+    let query: string
+    if (hasWake) {
+      query = transcript
+        .replace(/nova/gi, '')
+        .replace(/\s+/g, ' ')
+        .trim()
+        .replace(/[,.!?]+$/, '')
+    } else {
+      // Follow-up inside the conversation window — no wake word needed
+      query = transcript.replace(/\s+/g, ' ').trim().replace(/[,.!?]+$/, '')
+    }
     if (!query) {
-      // Just said her name to get her attention
+      // Just said her name to get her attention — open the conversation
+      convoUntilRef.current = Date.now() + CONVO_WINDOW_MS
+      setConvoOpen(true)
       setBubble("Yes? I'm here.")
       setCopied(false)
       speak("Yes? I'm here.")
@@ -322,6 +350,8 @@ const NovaAmbient: React.FC = () => {
     setMicNote(null)
     if (micOn) {
       setMicOn(false)
+      convoUntilRef.current = 0
+      setConvoOpen(false)
       try {
         window.speechSynthesis?.cancel()
       } catch {
@@ -392,7 +422,9 @@ const NovaAmbient: React.FC = () => {
     day: 'numeric',
   })
 
-  const micDot = micLive ? 'bg-emerald-400' : micOn ? 'bg-amber-400' : 'bg-gray-500'
+  const micDot = convoOpen
+    ? 'bg-cyan-300 animate-pulse'
+    : micLive ? 'bg-emerald-400' : micOn ? 'bg-amber-400' : 'bg-gray-500'
 
   return (
     <div
@@ -431,7 +463,7 @@ const NovaAmbient: React.FC = () => {
           >
             <span className={`inline-block h-2 w-2 rounded-full ${micDot}`} />
             {micOn ? <Mic size={14} /> : <MicOff size={14} />}
-            <span>{micOn ? 'Listening' : 'Enable listening'}</span>
+            <span>{micOn ? (convoOpen ? 'Talk to me' : 'Listening') : 'Enable listening'}</span>
           </button>
         ) : (
           <div className="rounded-full border border-gray-700 bg-black/40 px-3 py-1.5 text-xs text-gray-500">
