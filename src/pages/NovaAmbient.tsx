@@ -362,34 +362,35 @@ const NovaAmbient: React.FC = () => {
           }`}
           style={{ height: '68vmin', width: 'auto' }}
         />
-      </div>
-
-      {/* Nova's reply — persistent chat bubble with Copy + Dismiss (no auto-fade) */}
-      {bubble && (
-        <div className="absolute z-20 left-1/2 -translate-x-1/2 bottom-[24vmin] max-w-[80vw] rounded-2xl border border-koola-cyan/40 bg-black/70 px-5 py-3 backdrop-blur-sm" style={{ fontSize: '2.6vmin' }}>
-          <div id="nova-bubble-text" className="text-center text-gray-100 select-text">
-            {bubble}
-          </div>
-          {bubble !== '…' && (
-            <div className="mt-2 flex items-center justify-center gap-3">
-              <button
-                onClick={(e) => { e.stopPropagation(); copyBubble() }}
-                className="rounded-full border border-koola-cyan/50 px-4 py-1 text-koola-cyan"
-                style={{ fontSize: '2vmin' }}
-              >
-                {copied ? 'Copied ✓' : 'Copy'}
-              </button>
-              <button
-                onClick={(e) => { e.stopPropagation(); dismissBubble() }}
-                className="rounded-full border border-gray-500/50 px-4 py-1 text-gray-400"
-                style={{ fontSize: '2vmin' }}
-              >
-                Dismiss
-              </button>
+        {/* Nova's reply — speech bubble above her head, travels with her as she paces */}
+        {bubble && (
+          <div className="absolute z-20 left-1/2 -translate-x-1/2 bottom-full mb-[1.2vmin] w-max max-w-[62vmin] rounded-2xl border border-koola-cyan/40 bg-black/70 px-5 py-3 backdrop-blur-sm" style={{ fontSize: '2.6vmin' }}>
+            <div id="nova-bubble-text" className="text-center text-gray-100 select-text">
+              {bubble}
             </div>
-          )}
-        </div>
-      )}
+            {bubble !== '…' && (
+              <div className="mt-2 flex items-center justify-center gap-3">
+                <button
+                  onClick={(e) => { e.stopPropagation(); copyBubble() }}
+                  className="rounded-full border border-koola-cyan/50 px-4 py-1 text-koola-cyan"
+                  style={{ fontSize: '2vmin' }}
+                >
+                  {copied ? 'Copied ✓' : 'Copy'}
+                </button>
+                <button
+                  onClick={(e) => { e.stopPropagation(); dismissBubble() }}
+                  className="rounded-full border border-gray-500/50 px-4 py-1 text-gray-400"
+                  style={{ fontSize: '2vmin' }}
+                >
+                  Dismiss
+                </button>
+              </div>
+            )}
+            {/* speech tail pointing down at her */}
+            <div className="absolute -bottom-[5px] left-1/2 -translate-x-1/2 h-2.5 w-2.5 rotate-45 border-b border-r border-koola-cyan/40 bg-black/70" />
+          </div>
+        )}
+      </div>
 
       {/* Live captions of what she hears */}
       {caption.trim() && (
