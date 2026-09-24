@@ -9,6 +9,7 @@ import {
   BarChart3,
   AudioWaveform,
   Ghost,
+  Briefcase,
 } from 'lucide-react'
 import Sidebar from './components/Sidebar'
 import StudioChat from './pages/StudioChat'
@@ -19,12 +20,14 @@ import StyleEngine from './pages/StyleEngine'
 import VideoOrchestrator from './pages/VideoOrchestrator'
 import ProductionDashboard from './pages/ProductionDashboard'
 import NovaAmbient from './pages/NovaAmbient'
+import NovaOffice from './pages/NovaOffice'
 
 const navItems = [
   { path: '/', label: 'Dashboard', icon: BarChart3 },
   { path: '/chat', label: 'Chat', icon: MessageSquare },
   { path: '/beatlab', label: 'Beat Lab', icon: AudioWaveform },
   { path: '/nova', label: 'Nova', icon: Ghost },
+  { path: '/office', label: 'Office', icon: Briefcase },
   { path: '/episodes', label: 'Episodes', icon: Film },
   { path: '/lore', label: 'Lore', icon: BookOpen },
   { path: '/style', label: 'Style', icon: Palette },
@@ -77,6 +80,7 @@ function AppShell() {
             <Route path="/chat" element={<StudioChat />} />
             <Route path="/beatlab" element={<BeatLab />} />
             <Route path="/nova" element={<NovaAmbient />} />
+          <Route path="/office" element={<NovaOffice />} />
             <Route path="/episodes" element={<Episodes />} />
             <Route path="/lore" element={<LoreConsole />} />
             <Route path="/style" element={<StyleEngine />} />

@@ -205,3 +205,100 @@ export const apiClient = {
 };
 
 export default api;
+
+// ---------------------------------------------------------------------------
+// Nova's Office — the Apex task engine behind Nova.
+//
+// The office lives on its own service (the apex repo). Set VITE_APEX_URL on
+// the static site to the office's URL (e.g. https://apex-....onrender.com).
+// When it is unset or unreachable the Office page says so plainly.
+export const APEX_BASE_URL = normalizeApiBaseUrl(
+  (import.meta.env.VITE_APEX_URL as string | undefined) || ''
+);
+
+export interface OfficeSubTask {
+  id: string;
+  type: string;
+  goal: string;
+  status: string;
+  result: string;
+}
+
+export interface OfficeLogEntry {
+  timestamp: string;
+  action: string;
+  agent: string;
+  details?: string;
+}
+
+export interface OfficeTask {
+  id: string;
+  goal: string;
+  status: string;
+  subtasks: OfficeSubTask[];
+  artifacts: string[];
+  progress: number;
+  created_at: string;
+  updated_at: string;
+  logs: OfficeLogEntry[];
+}
+
+const OFFICE_UNREACHABLE = "Nova's office is unreachable. Is it online?";
+
+async function apexFetch(path: string, init?: RequestInit): Promise<Response> {
+  let res: Response;
+  try {
+    res = await fetch(`${APEX_BASE_URL}${path}`, init);
+  } catch {
+    throw new Error(OFFICE_UNREACHABLE);
+  }
+  return res;
+}
+
+async function apexJson<T>(path: string, failure: string, init?: RequestInit): Promise<T> {
+  const res = await apexFetch(path, init);
+  if (!res.ok) {
+    throw new Error(failure);
+  }
+  return (await res.json()) as T;
+}
+
+export const officeClient = {
+  isConfigured: (): boolean => APEX_BASE_URL.length > 0,
+
+  health: async (): Promise<boolean> => {
+    try {
+      const res = await apexFetch('/');
+      return res.ok;
+    } catch {
+      return false;
+    }
+  },
+
+  // Hand Nova's office a goal; it plans the work and starts it.
+  sendGoal: async (goal: string): Promise<{ task_id: string }> =>
+    apexJson<{ task_id: string }>(
+      '/task',
+      'The office could not take that goal. Please try again.',
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ goal }),
+      }
+    ),
+
+  // Full task state: subtasks, progress, logs, artifact names.
+  getTask: async (id: string): Promise<OfficeTask> =>
+    apexJson<OfficeTask>(
+      `/task/${encodeURIComponent(id)}/status`,
+      'Could not read the office whiteboard. Please try again.'
+    ),
+
+  stopTask: async (id: string): Promise<void> => {
+    await apexFetch(`/task/${encodeURIComponent(id)}/stop`, { method: 'POST' });
+  },
+
+  // Direct download link for a finished artifact.
+  artifactUrl: (id: string, name: string): string =>
+    `${APEX_BASE_URL}/task/${encodeURIComponent(id)}/artifact/${encodeURIComponent(name)}`,
+};
