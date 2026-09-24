@@ -1,5 +1,5 @@
 import React from 'react'
-import { BrowserRouter as Router, Routes, Route, NavLink } from 'react-router-dom'
+import { BrowserRouter as Router, Routes, Route, NavLink, useLocation } from 'react-router-dom'
 import {
   MessageSquare,
   Film,
@@ -8,6 +8,7 @@ import {
   Video,
   BarChart3,
   AudioWaveform,
+  Ghost,
 } from 'lucide-react'
 import Sidebar from './components/Sidebar'
 import StudioChat from './pages/StudioChat'
@@ -17,24 +18,30 @@ import LoreConsole from './pages/LoreConsole'
 import StyleEngine from './pages/StyleEngine'
 import VideoOrchestrator from './pages/VideoOrchestrator'
 import ProductionDashboard from './pages/ProductionDashboard'
+import NovaAmbient from './pages/NovaAmbient'
 
 const navItems = [
   { path: '/', label: 'Dashboard', icon: BarChart3 },
   { path: '/chat', label: 'Chat', icon: MessageSquare },
   { path: '/beatlab', label: 'Beat Lab', icon: AudioWaveform },
+  { path: '/nova', label: 'Nova', icon: Ghost },
   { path: '/episodes', label: 'Episodes', icon: Film },
   { path: '/lore', label: 'Lore', icon: BookOpen },
   { path: '/style', label: 'Style', icon: Palette },
   { path: '/video', label: 'Video', icon: Video },
 ]
 
-function App() {
+function AppShell() {
+  const location = useLocation()
+  // Nova ambient mode runs chrome-free: full-screen 24/7 presence on TVs / wall tablets
+  const ambient = location.pathname === '/nova'
+
   return (
-    <Router>
-      <div className="flex h-screen bg-gradient-to-br from-koola-dark via-black to-koola-dark overflow-hidden">
-        <Sidebar />
-        <div className="flex-1 flex flex-col min-w-0 min-h-0">
-          {/* Mobile top bar (sidebar is hidden on small screens) */}
+    <div className="flex h-screen bg-gradient-to-br from-koola-dark via-black to-koola-dark overflow-hidden">
+      {!ambient && <Sidebar />}
+      <div className="flex-1 flex flex-col min-w-0 min-h-0">
+        {!ambient && (
+          /* Mobile top bar (sidebar is hidden on small screens) */
           <div className="md:hidden shrink-0 border-b border-koola-cyan/20 bg-koola-purple/40 px-4 pt-3 pb-2">
             <h1 className="text-lg font-bold text-koola-cyan">
               Koola10{' '}
@@ -62,20 +69,29 @@ function App() {
               ))}
             </nav>
           </div>
+        )}
 
-          <main className="flex-1 min-h-0 overflow-y-auto">
-            <Routes>
-              <Route path="/" element={<ProductionDashboard />} />
-              <Route path="/chat" element={<StudioChat />} />
-              <Route path="/beatlab" element={<BeatLab />} />
-              <Route path="/episodes" element={<Episodes />} />
-              <Route path="/lore" element={<LoreConsole />} />
-              <Route path="/style" element={<StyleEngine />} />
-              <Route path="/video" element={<VideoOrchestrator />} />
-            </Routes>
-          </main>
-        </div>
+        <main className="flex-1 min-h-0 overflow-y-auto">
+          <Routes>
+            <Route path="/" element={<ProductionDashboard />} />
+            <Route path="/chat" element={<StudioChat />} />
+            <Route path="/beatlab" element={<BeatLab />} />
+            <Route path="/nova" element={<NovaAmbient />} />
+            <Route path="/episodes" element={<Episodes />} />
+            <Route path="/lore" element={<LoreConsole />} />
+            <Route path="/style" element={<StyleEngine />} />
+            <Route path="/video" element={<VideoOrchestrator />} />
+          </Routes>
+        </main>
       </div>
+    </div>
+  )
+}
+
+function App() {
+  return (
+    <Router>
+      <AppShell />
     </Router>
   )
 }

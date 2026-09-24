@@ -95,3 +95,62 @@ body {
 ::-webkit-scrollbar-thumb:hover {
   background: rgba(0, 240, 255, 0.5);
 }
+
+/* Nova ambient mode — ghost drift + glow pulse */
+@keyframes ghost-drift {
+  0%, 100% {
+    transform: translateY(-2.5%) scale(1) rotate(-1deg);
+  }
+  50% {
+    transform: translateY(2.5%) scale(1.03) rotate(1deg);
+  }
+}
+
+.animate-ghost-drift {
+  animation: ghost-drift 8s ease-in-out infinite;
+}
+
+@keyframes glow-pulse {
+  0%, 100% {
+    opacity: 0.5;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.85;
+    transform: scale(1.08);
+  }
+}
+
+.animate-glow-pulse {
+  animation: glow-pulse 8s ease-in-out infinite;
+}
+
+/* Nova ambient mode — full body: slow room pacing + tap flourish */
+@keyframes nova-pace {
+  0%, 100% {
+    transform: translateX(-15vw) translateY(1vmin);
+  }
+  50% {
+    transform: translateX(15vw) translateY(-1vmin);
+  }
+}
+
+.animate-nova-pace {
+  animation: nova-pace 60s ease-in-out infinite;
+}
+
+@keyframes nova-tap-pulse {
+  0% {
+    transform: scale(1);
+  }
+  40% {
+    transform: scale(1.06);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+.animate-nova-tap-pulse {
+  animation: nova-tap-pulse 0.9s ease-in-out;
+}
