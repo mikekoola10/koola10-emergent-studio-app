@@ -11,12 +11,15 @@ import {
   FileText,
   ScrollText,
   RefreshCw,
+  ChevronDown,
+  History,
 } from 'lucide-react'
 import {
   officeClient,
   APEX_BASE_URL,
   OfficeTask,
   OfficeSubTask,
+  OfficeTaskSummary,
 } from '../lib/api'
 
 type OfficeState = 'checking' | 'online' | 'offline' | 'unconfigured'
@@ -53,6 +56,65 @@ function SubTaskIcon({ subtask }: { subtask: OfficeSubTask }) {
   return <Loader2 size={18} className="text-koola-cyan animate-spin shrink-0" />
 }
 
+function formatDate(iso: string) {
+  try {
+    return new Date(iso).toLocaleString(undefined, {
+      month: 'short',
+      day: 'numeric',
+      hour: 'numeric',
+      minute: '2-digit',
+    })
+  } catch {
+    return iso
+  }
+}
+
+// Compact detail for a history row: plan, finished files, and the log tail.
+function HistoryDetail({ task }: { task: OfficeTask }) {
+  return (
+    <div className="space-y-3 pt-1">
+      {task.subtasks.length > 0 && (
+        <div className="space-y-1.5">
+          {task.subtasks.map((st) => (
+            <div key={st.id} className="flex items-center gap-2.5 text-sm">
+              <SubTaskIcon subtask={st} />
+              <span className="text-gray-300 truncate">{st.goal}</span>
+              <span className="text-gray-600 text-xs shrink-0">· {st.type}</span>
+            </div>
+          ))}
+        </div>
+      )}
+      {task.artifacts.length > 0 && (
+        <div className="space-y-1.5">
+          {task.artifacts.map((name) => (
+            <a
+              key={name}
+              href={officeClient.artifactUrl(task.id, name)}
+              download={name}
+              className="flex items-center gap-2.5 text-sm text-koola-cyan hover:underline"
+            >
+              <FileText size={15} className="shrink-0" />
+              <span className="font-mono truncate">{name}</span>
+              <Download size={14} className="shrink-0" />
+            </a>
+          ))}
+        </div>
+      )}
+      {task.logs.length > 0 && (
+        <div className="bg-black/50 rounded-lg p-3 max-h-40 overflow-y-auto font-mono text-[11px] space-y-1">
+          {task.logs.slice(-12).map((log, i) => (
+            <div key={i} className="text-gray-500 break-words">
+              <span className="text-koola-cyan/70">[{log.agent}]</span>{' '}
+              <span className="text-gray-400">{log.action}</span>
+              {log.details && <span> — {log.details}</span>}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
 const NovaOffice: React.FC = () => {
   const [office, setOffice] = useState<OfficeState>('checking')
   const [goal, setGoal] = useState('')
@@ -60,7 +122,23 @@ const NovaOffice: React.FC = () => {
   const [taskId, setTaskId] = useState<string | null>(null)
   const [task, setTask] = useState<OfficeTask | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [history, setHistory] = useState<OfficeTaskSummary[]>([])
+  const [historyLoading, setHistoryLoading] = useState(false)
+  const [expandedId, setExpandedId] = useState<string | null>(null)
+  const [expandedTask, setExpandedTask] = useState<OfficeTask | null>(null)
+  const [expanding, setExpanding] = useState(false)
   const logsEndRef = useRef<HTMLDivElement>(null)
+
+  const loadHistory = async () => {
+    setHistoryLoading(true)
+    try {
+      setHistory(await officeClient.listTasks())
+    } catch {
+      /* history is a bonus; the office still works without it */
+    } finally {
+      setHistoryLoading(false)
+    }
+  }
 
   const checkOffice = async () => {
     if (!officeClient.isConfigured()) {
@@ -76,6 +154,12 @@ const NovaOffice: React.FC = () => {
     checkOffice()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
+  // The notebook: load office history once the office answers.
+  useEffect(() => {
+    if (office === 'online') loadHistory()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [office])
 
   // Poll the whiteboard while the office is working.
   useEffect(() => {
@@ -97,7 +181,10 @@ const NovaOffice: React.FC = () => {
         const t = await officeClient.getTask(taskId)
         if (cancelled) return
         setTask(t)
-        if (TERMINAL.has(t.status)) clearInterval(timer)
+        if (TERMINAL.has(t.status)) {
+          clearInterval(timer)
+          loadHistory() // the finished task joins the history
+        }
       } catch {
         /* keep polling; the office may be restarting */
       }
@@ -136,8 +223,28 @@ const NovaOffice: React.FC = () => {
       await officeClient.stopTask(taskId)
       const t = await officeClient.getTask(taskId)
       setTask(t)
+      loadHistory()
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Could not stop the task.')
+    }
+  }
+
+  const toggleExpand = async (id: string) => {
+    if (expandedId === id) {
+      setExpandedId(null)
+      setExpandedTask(null)
+      return
+    }
+    setExpandedId(id)
+    setExpandedTask(null)
+    setExpanding(true)
+    try {
+      setExpandedTask(await officeClient.getTask(id))
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not open that task.')
+      setExpandedId(null)
+    } finally {
+      setExpanding(false)
     }
   }
 
@@ -326,6 +433,65 @@ const NovaOffice: React.FC = () => {
                   )}
                 </div>
               )}
+
+              {/* Office history — everything the notebook remembers */}
+              <div className="bg-koola-purple/20 border border-koola-cyan/20 rounded-xl p-5">
+                <h3 className="text-sm font-semibold text-gray-300 uppercase tracking-wide mb-1 flex items-center gap-2">
+                  <History size={16} /> Office history
+                </h3>
+                <p className="text-gray-500 text-xs mb-4">
+                  Every goal the office has worked on — kept in the notebook, safe through restarts.
+                </p>
+                {historyLoading && history.length === 0 ? (
+                  <div className="flex items-center justify-center py-6 text-gray-500 text-sm">
+                    <Loader2 size={18} className="animate-spin mr-2 text-koola-cyan" />
+                    Opening the notebook…
+                  </div>
+                ) : history.length === 0 ? (
+                  <div className="text-gray-500 text-sm py-4 text-center">
+                    Nothing filed yet — finished work will appear here.
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    {history.map((h) => {
+                      const open = expandedId === h.id
+                      return (
+                        <div key={h.id} className="bg-black/30 rounded-lg border border-transparent">
+                          <button
+                            onClick={() => toggleExpand(h.id)}
+                            className="w-full flex items-center gap-3 px-4 py-3 text-left"
+                          >
+                            <ChevronDown
+                              size={16}
+                              className={`text-gray-500 shrink-0 transition-transform ${open ? 'rotate-180' : ''}`}
+                            />
+                            <div className="min-w-0 flex-1">
+                              <div className="text-gray-100 text-sm font-medium truncate">{h.goal}</div>
+                              <div className="text-gray-500 text-xs mt-0.5">
+                                {formatDate(h.created_at)}
+                                {h.artifacts.length > 0 && ` · ${h.artifacts.length} file${h.artifacts.length > 1 ? 's' : ''}`}
+                              </div>
+                            </div>
+                            <span className={statusBadge(h.status)}>{statusLabel(h.status)}</span>
+                          </button>
+                          {open && (
+                            <div className="px-4 pb-4">
+                              {expanding && !expandedTask ? (
+                                <div className="flex items-center py-3 text-gray-500 text-sm">
+                                  <Loader2 size={16} className="animate-spin mr-2 text-koola-cyan" />
+                                  Pulling the file…
+                                </div>
+                              ) : (
+                                expandedTask && <HistoryDetail task={expandedTask} />
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      )
+                    })}
+                  </div>
+                )}
+              </div>
             </>
           )}
         </div>

@@ -231,6 +231,16 @@ export interface OfficeLogEntry {
   details?: string;
 }
 
+export interface OfficeTaskSummary {
+  id: string;
+  goal: string;
+  status: string;
+  progress: number;
+  created_at: string;
+  artifacts: string[];
+  subtask_count: number;
+}
+
 export interface OfficeTask {
   id: string;
   goal: string;
@@ -296,6 +306,16 @@ export const officeClient = {
 
   stopTask: async (id: string): Promise<void> => {
     await apexFetch(`/task/${encodeURIComponent(id)}/stop`, { method: 'POST' });
+  },
+
+  // Office history: every task the office remembers, newest first.
+  // Survives restarts when the office has its notebook (DATABASE_URL).
+  listTasks: async (): Promise<OfficeTaskSummary[]> => {
+    const data = await apexJson<{ tasks: OfficeTaskSummary[] }>(
+      '/tasks',
+      'Could not open the office history. Please try again.'
+    );
+    return data.tasks ?? [];
   },
 
   // Direct download link for a finished artifact.
