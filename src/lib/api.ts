@@ -9,7 +9,7 @@ function normalizeApiBaseUrl(raw: string): string {
 }
 
 export const API_BASE_URL =
-  normalizeApiBaseUrl(import.meta.env.VITE_API_BASE_URL || '') || 'https://koola10.fly.dev';
+  normalizeApiBaseUrl(import.meta.env.VITE_API_BASE_URL || '') || 'https://koola10-emergent-studio-app.onrender.com';
 
 const api: AxiosInstance = axios.create({
   baseURL: API_BASE_URL,
