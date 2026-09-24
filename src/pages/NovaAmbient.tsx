@@ -93,6 +93,7 @@ const NovaAmbient: React.FC = () => {
   const [convoOpen, setConvoOpen] = useState(false) // conversation window: follow-ups need no wake word
   const convoUntilRef = useRef(0) // timestamp when the conversation window closes
   const speakingRef = useRef(false) // true while TTS is playing — ignore her own voice
+  const [speaking, setSpeaking] = useState(false) // UI state: she is talking — bounce + waveform ring
   const CONVO_WINDOW_MS = 45000
 
   const setLook = (id: string) => {
@@ -146,11 +147,13 @@ const NovaAmbient: React.FC = () => {
       const u = new SpeechSynthesisUtterance(text)
       u.rate = 1
       speakingRef.current = true // don't transcribe her own voice as a new query
-      u.onend = () => { speakingRef.current = false }
-      u.onerror = () => { speakingRef.current = false }
+      setSpeaking(true)
+      u.onend = () => { speakingRef.current = false; setSpeaking(false) }
+      u.onerror = () => { speakingRef.current = false; setSpeaking(false) }
       window.speechSynthesis.speak(u)
     } catch {
       speakingRef.current = false
+      setSpeaking(false)
       // No voice available — the text bubble still shows
     }
   }
@@ -357,6 +360,8 @@ const NovaAmbient: React.FC = () => {
       } catch {
         /* ignore */
       }
+      speakingRef.current = false
+      setSpeaking(false)
     } else {
       // Prime a voice so the first spoken reply isn't delayed (also unlocks
       // audio on browsers that need a user gesture)
@@ -436,6 +441,15 @@ const NovaAmbient: React.FC = () => {
       {/* Live wallpaper: animated aurora + drifting stardust, tinted per her look */}
       <NovaWallpaper lookId={lookId} />
 
+      {/* Night Shift office — her room: back wall, cyan glow strip, desk silhouette, floor */}
+      <div className="nova-office" aria-hidden="true">
+        <div className="nova-office-back" />
+        <div className="nova-office-glowstrip" />
+        <div className="nova-office-desk" />
+        <div className="nova-office-floor" />
+        <div className="nova-office-vignette" />
+      </div>
+
       {/* Discreet way back to the studio — does not trigger the tap flourish */}
       <Link
         to="/beatlab"
@@ -472,10 +486,19 @@ const NovaAmbient: React.FC = () => {
         )}
       </div>
 
-      {/* Nova, full body: alive, drifting across the room */}
+      {/* Nova, full body: alive — breathes idle, bounces when talking, paces her office */}
       <div className="animate-nova-pace relative flex items-center justify-center flex-shrink min-h-0">
-        {/* Soft cyan glow behind her */}
-        <div className="animate-glow-pulse absolute rounded-full bg-[radial-gradient(ellipse,rgba(0,240,255,0.30)_0%,rgba(0,240,255,0.07)_55%,transparent_70%)] blur-2xl w-[58vmin] h-[76vmin]" />
+        {/* Soft cyan glow behind her — brightens while she talks */}
+        <div className={`animate-glow-pulse absolute rounded-full bg-[radial-gradient(ellipse,rgba(0,240,255,0.30)_0%,rgba(0,240,255,0.07)_55%,transparent_70%)] blur-2xl w-[58vmin] h-[76vmin] transition-opacity ${speaking ? 'opacity-100' : 'opacity-70'}`} />
+        {/* Waveform rings while she talks */}
+        {speaking && (
+          <>
+            <div className="animate-talk-ring absolute rounded-full border-2 border-koola-cyan/40 w-[52vmin] h-[52vmin]" aria-hidden="true" />
+            <div className="animate-talk-ring absolute rounded-full border border-koola-cyan/25 w-[52vmin] h-[52vmin]" style={{ animationDelay: '0.5s' }} aria-hidden="true" />
+            <div className="animate-talk-ring absolute rounded-full border border-fuchsia-400/20 w-[52vmin] h-[52vmin]" style={{ animationDelay: '1s' }} aria-hidden="true" />
+          </>
+        )}
+        <div className={`relative ${speaking ? 'animate-nova-speaking' : 'animate-nova-breathe'}`}>
         <video
           key={look.id}
           src={look.video}
@@ -496,6 +519,7 @@ const NovaAmbient: React.FC = () => {
             maskImage: 'radial-gradient(ellipse 90% 94% at 50% 48%, black 60%, transparent 82%)',
           }}
         />
+        </div>
         {/* Nova's reply — speech bubble above her head, travels with her as she paces */}
         {bubble && (
           <div className="absolute z-20 left-1/2 -translate-x-1/2 bottom-full mb-[1.2vmin] w-max max-w-[62vmin] rounded-2xl border border-koola-cyan/40 bg-black/70 px-5 py-3 backdrop-blur-sm" style={{ fontSize: '2.6vmin' }}>
