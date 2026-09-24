@@ -456,7 +456,13 @@ const NovaAmbient: React.FC = () => {
           className={`relative object-contain drop-shadow-[0_0_60px_rgba(0,240,255,0.20)] ${
             pulse ? 'animate-nova-tap-pulse' : ''
           }`}
-          style={{ height: '68vmin', width: 'auto' }}
+          style={{
+            height: '68vmin',
+            width: 'auto',
+            // Feather the frame edges so the box dissolves into the room — she stands *in* the space, not pasted on it
+            WebkitMaskImage: 'radial-gradient(ellipse 90% 94% at 50% 48%, black 60%, transparent 82%)',
+            maskImage: 'radial-gradient(ellipse 90% 94% at 50% 48%, black 60%, transparent 82%)',
+          }}
         />
         {/* Nova's reply — speech bubble above her head, travels with her as she paces */}
         {bubble && (
