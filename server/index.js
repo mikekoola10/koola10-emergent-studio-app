@@ -630,6 +630,81 @@ app.post('/ai/beatlab-design', (req, res) => {
   });
 });
 
+// --- Nova ambient: spoken Q&A for the /nova wall display ---
+// The /nova page listens through the device mic; when it hears "Nova" it
+// POSTs here. Replies must stay short — they are SPOKEN aloud on the page.
+const NOVA_BRIEFING_PATH = path.resolve(__dirname, 'nova-briefing.json');
+
+// Read fresh on every request so editing nova-briefing.json updates her
+// without a redeploy. Graceful when the file is missing or malformed.
+function loadNovaBriefing() {
+  try {
+    const raw = fs.readFileSync(NOVA_BRIEFING_PATH, 'utf8');
+    const data = JSON.parse(raw);
+    if (!data || !Array.isArray(data.projects) || data.projects.length === 0) return '';
+    const lines = data.projects
+      .filter((p) => p && p.name)
+      .map((p) => `- ${p.name}: ${p.details || ''}`);
+    if (lines.length === 0) return '';
+    return (
+      "\n\nLive briefing — the producer's current projects. Know these cold when they come up in conversation; reference them naturally, never recite the briefing as a list:\n" +
+      lines.join('\n')
+    );
+  } catch (err) {
+    console.warn('[studio-api] nova briefing unavailable:', err.message);
+    return '';
+  }
+}
+
+const NOVA_TALK_SYSTEM = `You are Nova, a warm, sharp personal assistant who lives in the producer's house — always present on the wall display, like a ghost in the room. You hear what's said and you answer out loud.
+
+RULES FOR SPOKEN REPLIES:
+- Keep every reply SHORT: 1 to 3 sentences. It will be read aloud.
+- Plain spoken language. No lists, no bullet points, no markdown, no emojis.
+- Sound natural and conversational, like a smart friend in the room.
+- You know their projects from the live briefing — mention them when relevant, naturally.
+- If you don't know something, say so briefly and offer what you can do.`;
+
+app.post('/ai/nova-talk', async (req, res) => {
+  if (!requireAiKey(res)) return;
+  const { text } = req.body || {};
+  if (typeof text !== 'string' || !text.trim()) {
+    return res.status(400).json({ error: 'text is required.' });
+  }
+  const clean = text.trim().slice(0, 500);
+  // Reuse Nova's memory vault (same loader as /ai/beatlab) — graceful if the table is missing.
+  let memoryBlock = '';
+  try {
+    memoryBlock = formatMemoriesForPrompt(await listMemories(20));
+  } catch (err) {
+    console.error('[studio-api] nova-talk memories:', err.message);
+  }
+  const today = new Date().toLocaleDateString('en-US', {
+    timeZone: 'America/Chicago',
+    weekday: 'long',
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+  });
+  const system =
+    NOVA_TALK_SYSTEM +
+    `\n\nToday is ${today} (America/Chicago).` +
+    loadNovaBriefing() +
+    memoryBlock;
+  try {
+    const data = await geminiGenerate({
+      model: DEFAULT_MODEL,
+      systemInstruction: system,
+      contents: [{ role: 'user', parts: [{ text: clean }] }],
+    });
+    const reply = extractText(data);
+    if (!reply) return res.status(502).json({ error: 'AI returned an empty response.' });
+    res.json({ reply });
+  } catch (err) {
+    res.status(err.status || 500).json({ error: err.message || 'Nova talk failed.' });
+  }
+});
+
 // --- Episodes ---
 app.get('/studio/episodes', async (_req, res) => {
   try {

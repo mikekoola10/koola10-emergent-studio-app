@@ -197,6 +197,11 @@ export const apiClient = {
     });
     return response.data;
   },
+  // Nova ambient — spoken Q&A: the /nova page sends what it heard after "Nova"
+  novaTalk: async (text: string): Promise<{ reply: string }> => {
+    const response = await api.post<{ reply: string }>('/ai/nova-talk', { text });
+    return response.data;
+  },
 };
 
 export default api;
