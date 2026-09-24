@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { ChevronLeft, Mic, MicOff, Send } from 'lucide-react'
+import { ChevronLeft, Mic, MicOff, Send, Shuffle } from 'lucide-react'
 import { apiClient } from '../lib/api'
 
 function greetingForHour(h: number): string {
@@ -11,6 +11,34 @@ function greetingForHour(h: number): string {
 }
 
 const DEFAULT_TITLE = 'Koola10 Emergent Studio'
+
+// Nova's shapeshifting looks — full-body, all original characters
+interface NovaLook {
+  id: string
+  name: string
+  img: string
+  video: string
+}
+const LOOKS: NovaLook[] = [
+  { id: 'streetwear', name: 'Streetwear', img: '/nova-ambient/nova-fullbody.jpg', video: '/nova-ambient/nova-idle.mp4' },
+  { id: 'fairy', name: 'Fairy Goddess', img: '/nova-ambient/look-fairy.jpg', video: '/nova-ambient/look-fairy.mp4' },
+  { id: 'goddess', name: 'Golden Goddess', img: '/nova-ambient/look-goddess.jpg', video: '/nova-ambient/look-goddess.mp4' },
+  { id: 'neon', name: 'Neon Cyber', img: '/nova-ambient/look-neon.jpg', video: '/nova-ambient/look-neon.mp4' },
+]
+
+// Keyword → look mapping for voice/text commands
+function detectLookInText(text: string, currentId: string): string | null {
+  const t = text.toLowerCase()
+  if (/\bfairy\b|\bwings\b|\bfae\b|\bpixie\b|\bmagical\b|\benchanted\b/.test(t)) return 'fairy'
+  if (/\bgoddess\b|\bgolden\b|\bgold\b/.test(t)) return 'goddess'
+  if (/\bneon\b|\bcyber\b|\bfutur|\bhologram\b/.test(t)) return 'neon'
+  if (/\bstreetwear\b|\bnormal\b|\boriginal\b|\bdefault\b/.test(t)) return 'streetwear'
+  if (/change (your|the) look|new look|switch( it)? up|surprise me|different outfit|shapeshift|change .* (look|outfit|form)|\bbecome\b/.test(t)) {
+    const others = LOOKS.filter((l) => l.id !== currentId)
+    return others[Math.floor(Math.random() * others.length)].id
+  }
+  return null
+}
 
 // Minimal typing for the browser speech APIs (not in TS DOM lib)
 interface RecResultLike {
@@ -52,12 +80,33 @@ const NovaAmbient: React.FC = () => {
   const [copied, setCopied] = useState(false) // copy-feedback for the bubble
   const [micNote, setMicNote] = useState<string | null>(null) // transient status
   const [chatText, setChatText] = useState('') // typed message to Nova
+  const [lookId, setLookId] = useState('streetwear') // Nova's current shapeshifted look
+  const look = LOOKS.find((l) => l.id === lookId) ?? LOOKS[0]
 
   const recRef = useRef<RecognitionLike | null>(null)
   const wantMicRef = useRef(false) // mirrors micOn inside recognition callbacks
   const captionTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const failCountRef = useRef(0) // consecutive instant recognition deaths (restart backoff)
   const lastStartRef = useRef(0) // timestamp of the last rec.start()
+  const lookIdRef = useRef('streetwear') // fresh look id for recognition callbacks
+
+  const setLook = (id: string) => {
+    lookIdRef.current = id
+    setLookId(id)
+  }
+
+  const shuffleLook = () => {
+    const others = LOOKS.filter((l) => l.id !== lookIdRef.current)
+    setLook(others[Math.floor(Math.random() * others.length)].id)
+  }
+
+  // Preload all look images so shapeshifting is instant
+  useEffect(() => {
+    LOOKS.forEach((l) => {
+      const im = new Image()
+      im.src = l.img
+    })
+  }, [])
 
   // Page title
   useEffect(() => {
@@ -142,6 +191,9 @@ const NovaAmbient: React.FC = () => {
       speak("Yes? I'm here.")
       return
     }
+    // Shapeshift command? Switch her look, but still let her answer normally
+    const lookHit = detectLookInText(query, lookIdRef.current)
+    if (lookHit) setLook(lookHit)
     askNova(query)
   }
 
@@ -157,6 +209,9 @@ const NovaAmbient: React.FC = () => {
     if (!text) return
     setChatText('')
     ;(document.activeElement as HTMLElement | null)?.blur?.()
+    // Shapeshift command? Switch her look, but still let her answer normally
+    const lookHit = detectLookInText(text, lookIdRef.current)
+    if (lookHit) setLook(lookHit)
     askNova(text)
   }
 
@@ -355,29 +410,40 @@ const NovaAmbient: React.FC = () => {
         <span>Studio</span>
       </Link>
 
-      {/* Listening toggle — the tap gesture mic permission needs */}
-      {supported ? (
+      {/* Top-right controls: look shuffle + listening toggle */}
+      <div className="absolute top-4 right-4 z-20 flex items-center gap-2">
         <button
-          onClick={toggleMic}
-          className="absolute top-4 right-4 z-20 flex items-center gap-2 rounded-full border border-koola-cyan/20 bg-black/40 px-3 py-1.5 text-xs text-gray-300 hover:border-koola-cyan/50 transition-colors"
+          onClick={(e) => { e.stopPropagation(); shuffleLook() }}
+          title="Change Nova's look"
+          aria-label="Change Nova's look"
+          className="flex h-8 w-8 items-center justify-center rounded-full border border-koola-cyan/20 bg-black/40 text-gray-300 hover:border-koola-cyan/50 transition-colors"
         >
-          <span className={`inline-block h-2 w-2 rounded-full ${micDot}`} />
-          {micOn ? <Mic size={14} /> : <MicOff size={14} />}
-          <span>{micOn ? 'Listening' : 'Enable listening'}</span>
+          <Shuffle size={14} />
         </button>
-      ) : (
-        <div className="absolute top-4 right-4 z-20 rounded-full border border-gray-700 bg-black/40 px-3 py-1.5 text-xs text-gray-500">
-          Listening not supported in this browser
-        </div>
-      )}
+        {supported ? (
+          <button
+            onClick={toggleMic}
+            className="flex items-center gap-2 rounded-full border border-koola-cyan/20 bg-black/40 px-3 py-1.5 text-xs text-gray-300 hover:border-koola-cyan/50 transition-colors"
+          >
+            <span className={`inline-block h-2 w-2 rounded-full ${micDot}`} />
+            {micOn ? <Mic size={14} /> : <MicOff size={14} />}
+            <span>{micOn ? 'Listening' : 'Enable listening'}</span>
+          </button>
+        ) : (
+          <div className="rounded-full border border-gray-700 bg-black/40 px-3 py-1.5 text-xs text-gray-500">
+            Listening not supported in this browser
+          </div>
+        )}
+      </div>
 
       {/* Nova, full body: alive, drifting across the room */}
       <div className="animate-nova-pace relative flex items-center justify-center flex-shrink min-h-0">
         {/* Soft cyan glow behind her */}
         <div className="animate-glow-pulse absolute rounded-full bg-[radial-gradient(ellipse,rgba(0,240,255,0.30)_0%,rgba(0,240,255,0.07)_55%,transparent_70%)] blur-2xl w-[58vmin] h-[76vmin]" />
         <video
-          src="/nova-ambient/nova-idle.mp4"
-          poster="/nova-ambient/nova-fullbody.jpg"
+          key={look.id}
+          src={look.video}
+          poster={look.img}
           autoPlay
           muted
           loop
@@ -444,7 +510,7 @@ const NovaAmbient: React.FC = () => {
           {greetingForHour(now.getHours())}
         </div>
         <div className="mt-[1.6vmin] uppercase text-koola-cyan/50 tracking-[0.35em]" style={{ fontSize: '1.6vmin' }}>
-          Nova &middot; always here
+          Nova &middot; always here &middot; {look.name}
         </div>
       </div>
 
