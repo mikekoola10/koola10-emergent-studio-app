@@ -1,0 +1,9 @@
+# Cloudflare Workers config — serves the Vite build as static assets.
+# (Wrangler's auto-detection needs Vite 6+; this app uses Vite 5, so we
+# configure the static-asset serving explicitly instead.)
+name = "koola10-emergent-studio-app"
+compatibility_date = "2026-09-28"
+
+[assets]
+directory = "./dist"
+not_found_handling = "single-page-application"
