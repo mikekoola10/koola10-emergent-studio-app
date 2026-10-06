@@ -101,6 +101,7 @@ const NovaAmbient: React.FC = () => {
   }
   const convoUntilRef = useRef(0) // timestamp when the conversation window closes
   const speakingRef = useRef(false) // true while TTS is playing — ignore her own voice
+  const lastAckRef = useRef(0) // last "Yes? I'm here." — cooldown against repeat announcements
   const [speaking, setSpeaking] = useState(false) // UI state: she is talking — bounce + waveform ring
   const speechTokenRef = useRef(0) // bumps every speak() so a stale queue can't keep talking
   const CONVO_WINDOW_MS = 90000 // breathes: extends while he's actively talking
@@ -216,8 +217,14 @@ const NovaAmbient: React.FC = () => {
     const line = `${greetingForHour(new Date().getHours())}. I'm listening — just talk to me.`
     setBubble(line)
     setCopied(false)
-    // Let the gesture settle for a beat so the first utterance isn't swallowed
-    window.setTimeout(() => speak(line), 350)
+    // Speak synchronously inside the tap gesture: a deferred speak() loses the
+    // audio grant on Android Chrome and she stays silent.
+    try {
+      window.speechSynthesis?.cancel() // clear anything stuck from the cached page
+    } catch {
+      /* ignore */
+    }
+    speak(line)
   }
 
   const dismissBubble = () => {
@@ -261,6 +268,9 @@ const NovaAmbient: React.FC = () => {
 
   const handleFinalTranscript = (transcript: string) => {
     setCaption('')
+    // Android Chrome fires empty final transcripts — never answer silence,
+    // or she'll talk to herself on loop.
+    if (!transcript.trim()) return
     if (speakingRef.current) {
       // Barge-in: he said her name over her voice — stop her, he's got the
       // floor. Anything else heard while she's talking is her own voice
@@ -293,7 +303,11 @@ const NovaAmbient: React.FC = () => {
       query = transcript.replace(/\s+/g, ' ').trim().replace(/[,.!?]+$/, '')
     }
     if (!query) {
-      // Just said her name to get her attention — open the conversation
+      // Just said her name to get her attention — open the conversation.
+      // Cooldown: never re-announce within 4s, so transcript glitches can't
+      // make her repeat herself.
+      if (Date.now() - lastAckRef.current < 4000) return
+      lastAckRef.current = Date.now()
       convoUntilRef.current = Date.now() + CONVO_WINDOW_MS
       setConvoOpen(true)
       setBubble("Yes? I'm here.")
