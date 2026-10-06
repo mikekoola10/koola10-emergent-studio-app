@@ -202,6 +202,14 @@ export const apiClient = {
     const response = await api.post<{ reply: string }>('/ai/nova-talk', { text });
     return response.data;
   },
+  // Nova's hands — reminders she speaks unprompted when they come due
+  novaDue: async (): Promise<{ reminders: Array<{ id: string; text: string; due_at: string }> }> => {
+    const response = await api.get('/ai/nova-due');
+    return response.data;
+  },
+  novaAckReminder: async (id: string): Promise<void> => {
+    await api.post(`/ai/nova-due/${encodeURIComponent(id)}/delivered`);
+  },
 };
 
 export default api;

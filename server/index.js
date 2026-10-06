@@ -121,9 +121,10 @@ function extractText(geminiJson) {
   }
 }
 
-async function geminiGenerate({ model, systemInstruction, contents }) {
+async function geminiGenerate({ model, systemInstruction, contents, tools }) {
   const body = { contents };
   if (systemInstruction) body.system_instruction = { parts: [{ text: systemInstruction }] };
+  if (tools) body.tools = tools;
   let res;
   try {
     res = await fetch(
@@ -630,6 +631,158 @@ app.post('/ai/beatlab-design', (req, res) => {
   });
 });
 
+// --- Nova's hands: tools she can call, reminders she delivers ---
+// Piece 3 of the whole-creature build. Her voice and ears live on the wall
+// display; these are her hands — she remembers, she reminds, she checks.
+
+const NOVA_TOOLS = [
+  {
+    function_declarations: [
+      {
+        name: 'remember_this',
+        description:
+          "Save a fact to Nova's permanent memory vault. Call it when he says 'remember', 'don't forget', or shares a durable fact, preference, or commitment.",
+        parameters: {
+          type: 'object',
+          properties: {
+            fact: { type: 'string', description: 'The fact, one short sentence.' },
+            category: {
+              type: 'string',
+              enum: ['setup', 'preference', 'feedback', 'goal', 'workflow', 'fact'],
+              description: 'Kind of memory.',
+            },
+          },
+          required: ['fact'],
+        },
+      },
+      {
+        name: 'set_reminder',
+        description:
+          'Set a reminder Nova will SPEAK ALOUD on the wall display when it comes due. Call it when he says "remind me".',
+        parameters: {
+          type: 'object',
+          properties: {
+            text: { type: 'string', description: 'What to remind him of, short.' },
+            minutes_from_now: {
+              type: 'number',
+              description:
+                'In how many minutes it comes due. Convert clock times ("at 8pm", "tomorrow at 9") using the current time in the system prompt.',
+            },
+          },
+          required: ['text', 'minutes_from_now'],
+        },
+      },
+      {
+        name: 'check_site',
+        description:
+          'Check whether one of his websites is up right now. Fetches the URL and reports the HTTP status.',
+        parameters: {
+          type: 'object',
+          properties: {
+            url: { type: 'string', description: 'Full https URL to check.' },
+          },
+          required: ['url'],
+        },
+      },
+    ],
+  },
+];
+
+let reminderStore = []; // in-memory fallback when no database is configured
+
+async function ensureRemindersTable() {
+  if (!pgPool) return;
+  try {
+    await pgPool.query(`CREATE TABLE IF NOT EXISTS nova_reminders (
+      id TEXT PRIMARY KEY,
+      text TEXT NOT NULL,
+      due_at TIMESTAMPTZ NOT NULL,
+      delivered BOOLEAN NOT NULL DEFAULT FALSE,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )`);
+    await pgPool.query(
+      'CREATE INDEX IF NOT EXISTS nova_reminders_due_idx ON nova_reminders (due_at) WHERE delivered = FALSE'
+    );
+  } catch (err) {
+    console.error('[studio-api] reminders table:', err.message);
+  }
+}
+
+async function novaToolRememberThis(args) {
+  const result = await saveMemory({ category: args && args.category, memory: args && args.fact });
+  return { saved: result };
+}
+
+async function novaToolSetReminder(args) {
+  const text = String((args && args.text) || '').trim().slice(0, 200);
+  const mins = Math.max(1, Math.min(7 * 24 * 60, Number(args && args.minutes_from_now) || 0));
+  if (!text || !mins) return { ok: false, error: 'Need reminder text and minutes from now.' };
+  const id = rid();
+  const dueAt = new Date(Date.now() + mins * 60000).toISOString();
+  if (pgPool) {
+    await pgPool.query('INSERT INTO nova_reminders (id, text, due_at) VALUES ($1, $2, $3)', [id, text, dueAt]);
+  } else {
+    reminderStore.push({ id, text, due_at: dueAt, delivered: false });
+  }
+  return { ok: true, due_in_minutes: mins };
+}
+
+async function novaToolCheckSite(args) {
+  const url = String((args && args.url) || '').trim();
+  if (!/^https?:\/\//i.test(url)) return { ok: false, error: 'URL must start with http(s).' };
+  try {
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), 12000);
+    const res = await fetch(url, { signal: ctrl.signal, redirect: 'follow' });
+    clearTimeout(timer);
+    return { ok: res.ok, status: res.status };
+  } catch (err) {
+    return { ok: false, error: String((err && err.message) || err).slice(0, 120) };
+  }
+}
+
+const NOVA_TOOL_RUNNERS = {
+  remember_this: novaToolRememberThis,
+  set_reminder: novaToolSetReminder,
+  check_site: novaToolCheckSite,
+};
+
+app.get('/ai/nova-due', async (_req, res) => {
+  try {
+    if (pgPool) {
+      const { rows } = await pgPool.query(
+        'SELECT id, text, due_at FROM nova_reminders WHERE delivered = FALSE AND due_at <= NOW() ORDER BY due_at ASC LIMIT 10'
+      );
+      return res.json({ reminders: rows });
+    }
+    const now = Date.now();
+    return res.json({
+      reminders: reminderStore
+        .filter((r) => !r.delivered && new Date(r.due_at).getTime() <= now)
+        .slice(0, 10),
+    });
+  } catch (err) {
+    console.error('[studio-api] nova-due:', err.message);
+    res.status(500).json({ error: 'Could not load reminders.' });
+  }
+});
+
+app.post('/ai/nova-due/:id/delivered', async (req, res) => {
+  const id = String(req.params.id || '');
+  try {
+    if (pgPool) {
+      await pgPool.query('UPDATE nova_reminders SET delivered = TRUE WHERE id = $1', [id]);
+    } else {
+      const r = reminderStore.find((x) => x.id === id);
+      if (r) r.delivered = true;
+    }
+    res.json({ ok: true });
+  } catch (err) {
+    console.error('[studio-api] nova-due ack:', err.message);
+    res.status(500).json({ error: 'Could not acknowledge reminder.' });
+  }
+});
+
 // --- Nova ambient: spoken Q&A for the /nova wall display ---
 // The /nova page listens through the device mic; when it hears "Nova" it
 // POSTs here. Replies must stay short — they are SPOKEN aloud on the page.
@@ -680,25 +833,58 @@ app.post('/ai/nova-talk', async (req, res) => {
   } catch (err) {
     console.error('[studio-api] nova-talk memories:', err.message);
   }
-  const today = new Date().toLocaleDateString('en-US', {
+  const today = new Date().toLocaleString('en-US', {
     timeZone: 'America/Chicago',
     weekday: 'long',
     year: 'numeric',
     month: 'long',
     day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
   });
   const system =
     NOVA_TALK_SYSTEM +
-    `\n\nToday is ${today} (America/Chicago).` +
+    `\n\nCurrent time: ${today} (America/Chicago).` +
     loadNovaBriefing() +
-    memoryBlock;
+    memoryBlock +
+    `\n\nYOUR HANDS — you can act, not just answer. remember_this saves a fact to your permanent memory (use it when he says "remember" or shares something durable). set_reminder sets a reminder you WILL speak aloud on the wall display when it comes due (use it for "remind me"; convert clock times using the current time above). check_site checks whether a website is up right now. After a tool runs, answer him in 1-3 spoken sentences using the result. Never mention tools, functions, or JSON — just do the thing and say so naturally.`;
   try {
-    const data = await geminiGenerate({
-      model: DEFAULT_MODEL,
-      systemInstruction: system,
-      contents: [{ role: 'user', parts: [{ text: clean }] }],
-    });
-    const reply = extractText(data);
+    // Gemini function-calling loop: she acts, sees the result, then speaks.
+    let contents = [{ role: 'user', parts: [{ text: clean }] }];
+    let reply = '';
+    for (let round = 0; round < 3; round++) {
+      const data = await geminiGenerate({
+        model: DEFAULT_MODEL,
+        systemInstruction: system,
+        contents,
+        tools: NOVA_TOOLS,
+      });
+      const cand = (data && data.candidates && data.candidates[0] && data.candidates[0].content) || {};
+      const parts = Array.isArray(cand.parts) ? cand.parts : [];
+      const calls = parts.filter((p) => p && p.functionCall);
+      const said = parts
+        .map((p) => (p && p.text) || '')
+        .join('')
+        .trim();
+      if (calls.length === 0) {
+        reply = said;
+        break;
+      }
+      const responseParts = [];
+      for (const c of calls) {
+        const name = c.functionCall.name;
+        const runner = NOVA_TOOL_RUNNERS[name];
+        let result;
+        try {
+          result = runner ? await runner(c.functionCall.args || {}) : { ok: false, error: 'Unknown tool.' };
+        } catch (err) {
+          result = { ok: false, error: String((err && err.message) || err).slice(0, 120) };
+        }
+        responseParts.push({ functionResponse: { name, response: result } });
+      }
+      contents = [...contents, { role: 'model', parts }, { role: 'user', parts: responseParts }];
+      if (said) reply = said;
+    }
     if (!reply) return res.status(502).json({ error: 'AI returned an empty response.' });
     res.json({ reply });
   } catch (err) {
@@ -830,6 +1016,7 @@ app.use((err, _req, res, _next) => {
 
 app.listen(PORT, () => {
   console.log(`[studio-api] listening on :${PORT}`);
+  ensureRemindersTable();
 });
 
 // Test hooks: expose memory internals so a local harness can verify the vault

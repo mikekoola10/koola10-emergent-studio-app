@@ -519,6 +519,44 @@ const NovaAmbient: React.FC = () => {
     }
   }, [])
 
+  // Nova's hands: due reminders. Every 30s she checks for reminders that came
+  // due and speaks them UNSOLICITED — he asked for these himself, so this is
+  // the most justified proactive speech there is. Each is acknowledged once.
+  useEffect(() => {
+    const tick = async () => {
+      if (!awakeRef.current || speakingRef.current) return // no voice yet, or she's mid-sentence
+      let due: Array<{ id: string; text: string }> = []
+      try {
+        const data = await apiClient.novaDue()
+        due = (data && data.reminders) || []
+      } catch {
+        return // server asleep or unreachable — try again next poll
+      }
+      for (const r of due) {
+        const line = `Reminder: ${r.text}`
+        setBubble(line)
+        setCopied(false)
+        speak(line)
+        // Wait until she finishes before the next one, then acknowledge it
+        await new Promise<void>((resolve) => {
+          const check = () => {
+            if (speakingRef.current) window.setTimeout(check, 500)
+            else resolve()
+          }
+          check()
+        })
+        try {
+          await apiClient.novaAckReminder(r.id)
+        } catch {
+          /* ack failed — it'll come due again next poll */
+        }
+      }
+    }
+    const t = window.setInterval(tick, 30000)
+    return () => window.clearInterval(t)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
   const timeStr = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
   const dateStr = now.toLocaleDateString([], {
     weekday: 'long',
