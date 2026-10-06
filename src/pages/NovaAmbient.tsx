@@ -103,7 +103,7 @@ const NovaAmbient: React.FC = () => {
   const speakingRef = useRef(false) // true while TTS is playing — ignore her own voice
   const [speaking, setSpeaking] = useState(false) // UI state: she is talking — bounce + waveform ring
   const speechTokenRef = useRef(0) // bumps every speak() so a stale queue can't keep talking
-  const CONVO_WINDOW_MS = 45000
+  const CONVO_WINDOW_MS = 90000 // breathes: extends while he's actively talking
 
   const setLook = (id: string) => {
     lookIdRef.current = id
@@ -207,7 +207,13 @@ const NovaAmbient: React.FC = () => {
     } catch {
       /* ignore */
     }
-    const line = `${greetingForHour(new Date().getHours())}. I'm here — say my name when you want me.`
+    // One tap wakes everything: her voice AND her ears. The conversation
+    // window opens immediately so he can just talk — no wake word needed first.
+    setMicNote(null)
+    setMicOn(true)
+    convoUntilRef.current = Date.now() + CONVO_WINDOW_MS
+    setConvoOpen(true)
+    const line = `${greetingForHour(new Date().getHours())}. I'm listening — just talk to me.`
     setBubble(line)
     setCopied(false)
     // Let the gesture settle for a beat so the first utterance isn't swallowed
@@ -255,7 +261,23 @@ const NovaAmbient: React.FC = () => {
 
   const handleFinalTranscript = (transcript: string) => {
     setCaption('')
-    if (speakingRef.current) return // that's her own voice — ignore it
+    if (speakingRef.current) {
+      // Barge-in: he said her name over her voice — stop her, he's got the
+      // floor. Anything else heard while she's talking is her own voice
+      // coming back through the mic, so it stays ignored.
+      if (/^\W*nova\b/i.test(transcript.trim())) {
+        speechTokenRef.current++ // invalidate her queued sentences
+        try {
+          window.speechSynthesis?.cancel()
+        } catch {
+          /* ignore */
+        }
+        speakingRef.current = false
+        setSpeaking(false)
+      } else {
+        return
+      }
+    }
     const hasWake = /nova/i.test(transcript)
     const inConvo = Date.now() < convoUntilRef.current
     if (!hasWake && !inConvo) return // not talking to her — stay quiet
@@ -356,6 +378,10 @@ const NovaAmbient: React.FC = () => {
       if (interim.trim()) {
         setCaption(interim)
         resetCaptionFade()
+        // He's actively talking — keep the conversation window breathing
+        if (Date.now() < convoUntilRef.current) {
+          convoUntilRef.current = Date.now() + CONVO_WINDOW_MS
+        }
       }
     }
 
