@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { ChevronLeft, Mic, MicOff, Send, Shuffle } from 'lucide-react'
+import { BookOpen, ChevronLeft, Mic, MicOff, Send, Shuffle } from 'lucide-react'
 import { apiClient } from '../lib/api'
 import NovaWallpaper from '../components/NovaWallpaper'
 
@@ -91,6 +91,14 @@ const NovaAmbient: React.FC = () => {
   const lastStartRef = useRef(0) // timestamp of the last rec.start()
   const lookIdRef = useRef('goddess') // fresh look id for recognition callbacks
   const [convoOpen, setConvoOpen] = useState(false) // conversation window: follow-ups need no wake word
+  const awakeRef = useRef(false) // she has greeted him aloud at least once (audio needs a gesture)
+  const [briefOpen, setBriefOpen] = useState(false) // morning-brief reader panel
+  const [briefText, setBriefText] = useState('') // pasted morning brief text
+  const briefTextRef = useRef('') // fresh brief text for the voice-command path
+  const updateBriefText = (t: string) => {
+    briefTextRef.current = t
+    setBriefText(t)
+  }
   const convoUntilRef = useRef(0) // timestamp when the conversation window closes
   const speakingRef = useRef(false) // true while TTS is playing — ignore her own voice
   const [speaking, setSpeaking] = useState(false) // UI state: she is talking — bounce + waveform ring
@@ -135,11 +143,7 @@ const NovaAmbient: React.FC = () => {
     return () => clearInterval(t)
   }, [])
 
-  // Tap: a small flourish (gentle scale pulse), not a face change
-  const onTap = () => {
-    setPulse(true)
-    window.setTimeout(() => setPulse(false), 900)
-  }
+  // (wakeNova lives just below speak — first tap wakes her and she greets aloud)
 
   const speak = (text: string) => {
     try {
@@ -187,6 +191,27 @@ const NovaAmbient: React.FC = () => {
       setSpeaking(false)
       // No voice available — the text bubble still shows
     }
+  }
+
+  // First tap anywhere: wake her up. Browsers demand a user gesture before any
+  // audio, so this tap unlocks her voice and she greets him aloud — the moment
+  // she stops being a page you visit and starts being someone who's there.
+  // Later taps are just the gentle pulse flourish.
+  const wakeNova = () => {
+    setPulse(true)
+    window.setTimeout(() => setPulse(false), 900)
+    if (awakeRef.current) return
+    awakeRef.current = true
+    try {
+      window.speechSynthesis?.getVoices()
+    } catch {
+      /* ignore */
+    }
+    const line = `${greetingForHour(new Date().getHours())}. I'm here — say my name when you want me.`
+    setBubble(line)
+    setCopied(false)
+    // Let the gesture settle for a beat so the first utterance isn't swallowed
+    window.setTimeout(() => speak(line), 350)
   }
 
   const dismissBubble = () => {
@@ -252,6 +277,22 @@ const NovaAmbient: React.FC = () => {
       setBubble("Yes? I'm here.")
       setCopied(false)
       speak("Yes? I'm here.")
+      return
+    }
+    // "Read my brief" — open the brief panel and read today's brief aloud
+    if (/read (my|the) brief/.test(query.toLowerCase())) {
+      setBriefOpen(true)
+      const t = briefTextRef.current.trim()
+      if (t) {
+        setBubble("Reading today's brief.")
+        setCopied(false)
+        speak(t)
+      } else {
+        const line = "Paste today's brief into the panel and I'll read it to you."
+        setBubble(line)
+        setCopied(false)
+        speak(line)
+      }
       return
     }
     // Shapeshift command? Switch her look, but still let her answer normally
@@ -465,7 +506,7 @@ const NovaAmbient: React.FC = () => {
 
   return (
     <div
-      onClick={onTap}
+      onClick={wakeNova}
       className={`relative h-full w-full overflow-hidden bg-gradient-to-br from-koola-dark via-black to-koola-dark flex flex-col items-center justify-center select-none ${
         idle ? 'cursor-none' : 'cursor-pointer'
       }`}
@@ -492,8 +533,16 @@ const NovaAmbient: React.FC = () => {
         <span>Studio</span>
       </Link>
 
-      {/* Top-right controls: look shuffle + listening toggle */}
+      {/* Top-right controls: brief reader, look shuffle + listening toggle */}
       <div className="absolute top-4 right-4 z-20 flex items-center gap-2">
+        <button
+          onClick={(e) => { e.stopPropagation(); setBriefOpen((v) => !v) }}
+          title="Morning brief reader"
+          aria-label="Morning brief reader"
+          className="flex h-8 w-8 items-center justify-center rounded-full border border-koola-cyan/20 bg-black/40 text-gray-300 hover:border-koola-cyan/50 transition-colors"
+        >
+          <BookOpen size={14} />
+        </button>
         <button
           onClick={(e) => { e.stopPropagation(); shuffleLook() }}
           title="Change Nova's look"
@@ -517,6 +566,43 @@ const NovaAmbient: React.FC = () => {
           </div>
         )}
       </div>
+
+      {/* Morning brief reader — paste today's brief, she reads it aloud */}
+      {briefOpen && (
+        <div
+          onClick={(e) => e.stopPropagation()}
+          className="absolute z-30 left-1/2 top-[12vmin] -translate-x-1/2 w-[min(92vw,560px)] rounded-2xl border border-koola-cyan/40 bg-black/80 p-4 backdrop-blur-md"
+        >
+          <div className="mb-2 text-koola-cyan/80 text-sm tracking-wide">Today's brief — paste it in, I'll read it</div>
+          <textarea
+            value={briefText}
+            onChange={(e) => updateBriefText(e.target.value)}
+            placeholder="Paste the morning brief here…"
+            rows={6}
+            className="w-full select-text rounded-xl border border-koola-cyan/25 bg-black/60 p-3 text-sm text-gray-100 placeholder:text-gray-500 outline-none focus:border-koola-cyan/60"
+          />
+          <div className="mt-3 flex items-center justify-end gap-2">
+            <button
+              onClick={() => setBriefOpen(false)}
+              className="rounded-full border border-gray-500/50 px-4 py-1.5 text-xs text-gray-400"
+            >
+              Close
+            </button>
+            <button
+              onClick={() => {
+                const t = briefTextRef.current.trim()
+                if (!t) return
+                setBubble("Reading today's brief.")
+                setCopied(false)
+                speak(t)
+              }}
+              className="rounded-full border border-koola-cyan/50 bg-koola-cyan/10 px-4 py-1.5 text-xs text-koola-cyan hover:bg-koola-cyan/20"
+            >
+              Read it to me
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Nova, full body: alive — breathes idle, bounces when talking, paces her office */}
       <div className="animate-nova-pace relative flex items-center justify-center flex-shrink min-h-0">
